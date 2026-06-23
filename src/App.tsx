@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, Route, Routes, useNavigate, useSearchParams } from 'react-router-dom';
-import { getAddress, getNetwork, isConnected, requestAccess, signTransaction } from '@stellar/freighter-api';
 import { Asset, BASE_FEE, Memo, Networks, Operation, TransactionBuilder } from '@stellar/stellar-sdk';
 import { nanoid } from 'nanoid';
 import toast from 'react-hot-toast';
@@ -18,10 +17,18 @@ import {
   Sparkles,
   Trash2,
   Wallet,
+  FileCode,
+  Radio
 } from 'lucide-react';
 import { useRequestStore, useWalletStore } from './store';
 import type { Participant, PaymentRequest, TransactionResult } from './types';
 import { formatXlm, isValidStellarAddress, server, truncateAddress } from './utils';
+
+import { useWallet } from './hooks/useWallet';
+import { WalletConnect } from './components/wallet/WalletConnect';
+import { TxStatusBar } from './components/tx/TxStatusBar';
+import { ContractRequests } from './components/contract/ContractRequests';
+import { EventFeed } from './components/events/EventFeed';
 
 function getFreighterError(error: unknown, fallback: string) {
   if (error instanceof Error) return error.message;
@@ -29,44 +36,7 @@ function getFreighterError(error: unknown, fallback: string) {
   return fallback;
 }
 
-function useWallet() {
-  const { setAddress, setConnected, reset } = useWalletStore();
 
-  const connect = useCallback(async () => {
-    const installed = await isConnected();
-    if ('error' in installed && installed.error) throw new Error(installed.error.message);
-    if (!installed.isConnected) throw new Error('Freighter wallet is not installed.');
-
-    const access = await requestAccess();
-    if ('error' in access && access.error) throw new Error(access.error.message);
-    if (!access.address) throw new Error('Wallet access was not granted.');
-
-    const network = await getNetwork();
-    if ('network' in network && network.network !== 'TESTNET') {
-      toast.error('Switch Freighter to Testnet before sending.');
-    }
-
-    setAddress(access.address);
-    setConnected(true);
-    return access.address;
-  }, [setAddress, setConnected]);
-
-  const restore = useCallback(async () => {
-    try {
-      const installed = await isConnected();
-      if (!('isConnected' in installed) || !installed.isConnected) return;
-      const addressResult = await getAddress();
-      if ('address' in addressResult && addressResult.address) {
-        setAddress(addressResult.address);
-        setConnected(true);
-      }
-    } catch {
-      reset();
-    }
-  }, [reset, setAddress, setConnected]);
-
-  return { connect, disconnect: reset, restore };
-}
 
 function useBalance() {
   const { address, setBalance } = useWalletStore();
@@ -95,6 +65,7 @@ function useBalance() {
 
 function useSendPayment() {
   const { address } = useWalletStore();
+  const { signXdr } = useWallet();
   const [result, setResult] = useState<TransactionResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -116,13 +87,8 @@ function useSendPayment() {
 
       if (memo) builder = builder.addMemo(Memo.text(memo.slice(0, 28)));
       const transaction = builder.build();
-      const signed = await signTransaction(transaction.toXDR(), {
-        networkPassphrase: Networks.TESTNET,
-        address,
-      });
-      if ('error' in signed && signed.error) throw new Error(signed.error.message);
+      const signedXdr = await signXdr(transaction.toXDR());
 
-      const signedXdr = 'signedTxXdr' in signed ? signed.signedTxXdr : String(signed);
       const signedTx = TransactionBuilder.fromXDR(signedXdr, Networks.TESTNET);
       const response = await server.submitTransaction(signedTx);
       const tx = { hash: response.hash, to, amount, memo, status: 'success' as const, timestamp: new Date() };
@@ -164,31 +130,7 @@ function Navbar() {
   );
 }
 
-function WalletConnect({ label = 'Connect Freighter', className = '' }: { label?: string; className?: string }) {
-  const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
-  const { connect } = useWallet();
 
-  const handleConnect = async () => {
-    setLoading(true);
-    try {
-      await connect();
-      toast.success('Wallet connected!');
-      navigate('/dashboard');
-    } catch (error) {
-      toast.error(getFreighterError(error, 'Wallet connection failed.'));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <button className={`btn primary walletBtn ${className}`} disabled={loading} onClick={handleConnect}>
-      {loading ? <Loader2 className="spin" size={16} /> : <Wallet size={16} />}
-      {loading ? 'Connecting...' : label}
-    </button>
-  );
-}
 
 function WalletInfo() {
   const navigate = useNavigate();
@@ -457,15 +399,12 @@ function RequestInbox() {
 
 function Dashboard() {
   const { address, isConnected } = useWalletStore();
-  const { restore } = useWallet();
-  const [active, setActive] = useState<'send' | 'split' | 'requests'>('send');
+  const [active, setActive] = useState<'send' | 'split' | 'requests' | 'contract' | 'events'>('send');
   const pendingCount = useRequestStore((store) => store.requests.filter((request) => request.status === 'pending' && request.from === address).length);
   const fetchRequests = useRequestStore((store) => store.fetchRequests);
   useBalance();
 
-  useEffect(() => {
-    restore();
-  }, [restore]);
+
 
   useEffect(() => {
     if (address) {
@@ -477,6 +416,8 @@ function Dashboard() {
     ['send', Send, 'Send XLM'],
     ['split', Calculator, 'Split Bill'],
     ['requests', Inbox, 'Requests'],
+    ['contract', FileCode, 'Contract'],
+    ['events', Radio, 'Live Feed'],
   ] as const, []);
 
   if (!isConnected) {
@@ -500,14 +441,17 @@ function Dashboard() {
         </aside>
         <section className="dashMain">
           <h2>{tabs.find(([id]) => id === active)?.[2]}</h2>
-          <p>{active === 'send' ? 'Transfer XLM on Stellar Testnet' : active === 'split' ? 'Divide expenses between friends' : 'Pending requests from bill splits'}</p>
+          <p>{active === 'send' ? 'Transfer XLM on Stellar Testnet' : active === 'split' ? 'Divide expenses between friends' : active === 'requests' ? 'Pending requests from bill splits' : active === 'contract' ? 'Interact with the Payment Request Contract' : 'Live Contract Events'}</p>
           <div className="panel">
             {active === 'send' && <SendForm />}
             {active === 'split' && <BillSplitter />}
             {active === 'requests' && <RequestInbox />}
+            {active === 'contract' && <ContractRequests />}
+            {active === 'events' && <EventFeed />}
           </div>
         </section>
       </main>
+      <TxStatusBar />
     </>
   );
 }
@@ -515,15 +459,10 @@ function Dashboard() {
 function PayPage() {
   const [params] = useSearchParams();
   const { isConnected } = useWalletStore();
-  const { restore } = useWallet();
   const { addRequests } = useRequestStore();
   const to = params.get('address') ?? '';
   const amount = params.get('amount') ?? '';
   const memo = params.get('memo') ?? '';
-
-  useEffect(() => {
-    restore();
-  }, [restore]);
 
   function saveForLater() {
     addRequests([{
