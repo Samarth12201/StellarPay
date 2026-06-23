@@ -42,3 +42,16 @@ VITE_APP_URL=http://localhost:5173
 ```bash
 npm run build
 ```
+
+## Screenshots
+
+### Landing Page
+![Landing Page](./screenshots/screenshot_1.png)
+
+### Wallet Connected & Transaction Result
+*(Includes Wallet connected state, Balance displayed, and Transaction result shown to the user)*
+![Wallet Connected & Transaction Result](./screenshots/screenshot_0.png)
+
+### Successful Testnet Transaction
+*(Stellar Expert Explorer View)*
+![Successful testnet transaction](./screenshots/screenshot_2.png)
