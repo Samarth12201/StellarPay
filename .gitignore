@@ -1,0 +1,6 @@
+node_modules/
+dist/
+server/db.sqlite
+.env
+.agents/
+skills-lock.json
