@@ -38,10 +38,40 @@ export function SettlementView({ settlements, myAddress, onPay, onRequest, payin
     }
   };
 
-  const handleRequest = (s: Settlement) => {
+  const handleRequest = async (s: Settlement) => {
     try {
+      // 1. Save locally
       onRequest(s);
-      toast.success(`Payment request sent to ${s.fromName}`);
+      
+      // 2. Generate shareable link
+      const url = new URL(window.location.origin);
+      url.pathname = '/pay';
+      url.searchParams.set('address', s.toAddress);
+      url.searchParams.set('amount', s.amount.toFixed(7));
+      url.searchParams.set('memo', `Group settlement: ${s.fromName}`.slice(0, 28));
+
+      const shareData = {
+        title: 'Payment Request - StellarPay',
+        text: `Hey! Please pay ${s.amount} XLM to settle up our group expenses.`,
+        url: url.toString()
+      };
+
+      // 3. Try native share, fallback to clipboard
+      if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+        try {
+          await navigator.share(shareData);
+          toast.success('Payment request shared!');
+        } catch (shareErr: any) {
+          if (shareErr.name !== 'AbortError') {
+            await navigator.clipboard.writeText(url.toString());
+            toast.success('Payment link copied to clipboard!');
+          }
+        }
+      } else {
+        await navigator.clipboard.writeText(url.toString());
+        toast.success('Payment link copied to clipboard!');
+      }
+
     } catch (err: any) {
       toast.error(err.message ?? 'Could not send request');
     }

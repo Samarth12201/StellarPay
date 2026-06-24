@@ -2,30 +2,21 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { PaymentRequest } from '../types';
 import { nanoid } from 'nanoid';
+import { supabase } from '../lib/supabase';
 
 interface RequestStore {
   requests: PaymentRequest[];
 
-  // Add a single request (e.g. from group settlement "Send Request" button)
-  addRequest: (req: Omit<PaymentRequest, 'id' | 'createdAt'>) => string;
+  // Sync from Supabase
+  syncRequests: () => Promise<void>;
 
-  // Add multiple requests at once (e.g. after bill split)
-  addRequests: (reqs: Array<Omit<PaymentRequest, 'id' | 'createdAt'>>) => void;
+  addRequest: (req: Omit<PaymentRequest, 'id' | 'createdAt'>) => Promise<string>;
+  addRequests: (reqs: Array<Omit<PaymentRequest, 'id' | 'createdAt'>>) => Promise<void>;
+  markPaid: (id: string, txHash: string) => Promise<void>;
+  markRejected: (id: string) => Promise<void>;
 
-  // Mark a request as paid (called after on-chain TX confirms)
-  markPaid: (id: string, txHash: string) => void;
-
-  // Mark a request as rejected
-  markRejected: (id: string) => void;
-
-  // THE KEY SELECTOR: returns only requests addressed TO this wallet address
-  // This is how Person B sees their requests when they connect their wallet
   getIncoming: (myAddress: string) => PaymentRequest[];
-
-  // Returns requests created BY this address (for outgoing view)
   getOutgoing: (myAddress: string) => PaymentRequest[];
-
-  // Get pending count for a specific address (for badge)
   getPendingCount: (myAddress: string) => number;
 }
 
@@ -34,38 +25,102 @@ export const useRequestStore = create<RequestStore>()(
     (set, get) => ({
       requests: [],
 
-      addRequest: (req) => {
+      syncRequests: async () => {
+        if (!supabase) return;
+        const { data } = await supabase.from('payment_requests').select('*');
+        if (data) {
+          const mapped = data.map((d) => ({
+            id: d.id,
+            groupId: d.groupId,
+            groupName: d.groupName,
+            fromAddress: d.fromAddress,
+            toAddress: d.toAddress,
+            fromName: d.fromName,
+            amount: d.amount,
+            memo: d.memo,
+            status: d.status as any,
+            txHash: d.txHash,
+            createdAt: new Date(d.created_at)
+          }));
+          // Merge avoiding duplicates
+          set((s) => {
+            const existingIds = new Set(s.requests.map((r) => r.id));
+            const newReqs = mapped.filter((m) => !existingIds.has(m.id));
+            return { requests: [...newReqs, ...s.requests] };
+          });
+        }
+      },
+
+      addRequest: async (req) => {
         const id = nanoid();
-        set((s) => ({
-          requests: [{ ...req, id, createdAt: new Date() }, ...s.requests],
-        }));
+        const newReq = { ...req, id, createdAt: new Date() };
+        set((s) => ({ requests: [newReq, ...s.requests] }));
+        
+        if (supabase) {
+          await supabase.from('payment_requests').insert({
+            id: newReq.id,
+            groupId: newReq.groupId,
+            groupName: newReq.groupName,
+            fromAddress: newReq.fromAddress,
+            toAddress: newReq.toAddress,
+            fromName: newReq.fromName,
+            amount: newReq.amount,
+            memo: newReq.memo,
+            status: newReq.status,
+            txHash: newReq.txHash
+          });
+        }
         return id;
       },
 
-      addRequests: (reqs) => {
+      addRequests: async (reqs) => {
         const newReqs = reqs.map((r) => ({
           ...r,
           id: nanoid(),
           createdAt: new Date(),
         }));
         set((s) => ({ requests: [...newReqs, ...s.requests] }));
+        
+        if (supabase) {
+          await supabase.from('payment_requests').insert(
+            newReqs.map(r => ({
+              id: r.id,
+              groupId: r.groupId,
+              groupName: r.groupName,
+              fromAddress: r.fromAddress,
+              toAddress: r.toAddress,
+              fromName: r.fromName,
+              amount: r.amount,
+              memo: r.memo,
+              status: r.status,
+              txHash: r.txHash
+            }))
+          );
+        }
       },
 
-      markPaid: (id, txHash) =>
+      markPaid: async (id, txHash) => {
         set((s) => ({
           requests: s.requests.map((r) =>
             r.id === id ? { ...r, status: 'paid' as const, txHash } : r
           ),
-        })),
+        }));
+        if (supabase) {
+          await supabase.from('payment_requests').update({ status: 'paid', txHash }).eq('id', id);
+        }
+      },
 
-      markRejected: (id) =>
+      markRejected: async (id) => {
         set((s) => ({
           requests: s.requests.map((r) =>
             r.id === id ? { ...r, status: 'rejected' as const } : r
           ),
-        })),
+        }));
+        if (supabase) {
+          await supabase.from('payment_requests').update({ status: 'rejected' }).eq('id', id);
+        }
+      },
 
-      // CRITICAL: only return requests where THIS wallet is the payer
       getIncoming: (myAddress: string) =>
         get().requests.filter(
           (r) =>

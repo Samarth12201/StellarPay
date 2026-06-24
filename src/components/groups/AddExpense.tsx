@@ -53,12 +53,12 @@ export function AddExpense({ groupId, onDone }: Props) {
     amountNum > 0 &&
     activeSplitAmong.length > 0;
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!isValid) {
       toast.error('Enter a description and valid amount');
       return;
     }
-    addExpense(groupId, {
+    await addExpense(groupId, {
       description: description.trim(),
       totalAmount: amountNum,
       paidBy: activePaidById,

@@ -46,7 +46,7 @@ export function CreateGroup() {
     if (!isFormValid) return;
     setLoading(true);
     try {
-      const groupId = createGroup(
+      const groupId = await createGroup(
         groupName.trim(),
         members.map((m) => ({ name: m.name.trim(), address: m.address.trim() }))
       );

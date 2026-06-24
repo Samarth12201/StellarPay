@@ -153,7 +153,7 @@ export function useGroupSettlement(groupId: string) {
    * Creates a pending PaymentRequest with toAddress = debtor's wallet.
    * When the debtor connects their wallet, they see this in their inbox via getIncoming().
    */
-  const sendPaymentRequest = (settlement: Settlement): string => {
+  const sendPaymentRequest = async (settlement: Settlement): Promise<string> => {
     if (!address) throw new Error('Wallet not connected');
     if (settlement.toAddress !== address) {
       throw new Error("You can only send requests for settlements where you are the creditor.");
@@ -165,11 +165,9 @@ export function useGroupSettlement(groupId: string) {
       );
     }
 
-    // Create a PENDING request addressed TO the debtor (fromAddress)
-    // When the debtor opens the app with their wallet, getIncoming(debtorAddress) returns this
-    const requestId = addRequest({
-      fromAddress: address,                 // creditor — who is owed (me)
-      toAddress: settlement.fromAddress,    // debtor — who must pay (their inbox)
+    const requestId = await addRequest({
+      fromAddress: address,
+      toAddress: settlement.fromAddress,
       fromName: myMember?.name ?? settlement.toName,
       amount: settlement.amount.toFixed(7),
       memo: `${group?.name ?? 'Group'} — settle with ${myMember?.name ?? 'member'}`,
@@ -181,19 +179,13 @@ export function useGroupSettlement(groupId: string) {
     return requestId;
   };
 
-  // ── ACTION 3: Send requests for ALL unsettled debts ──────
-  /**
-   * The group creator (or any creditor) can bulk-send requests to all debtors.
-   * Returns the number of requests created.
-   */
-  const sendAllPaymentRequests = (): number => {
+  const sendAllPaymentRequests = async (): Promise<number> => {
     if (!address) return 0;
-    // Only send requests for settlements where I am the creditor (toAddress === me)
     const myReceivables = settlements.filter((s) => s.toAddress === address);
     let count = 0;
     for (const s of myReceivables) {
       try {
-        sendPaymentRequest(s);
+        await sendPaymentRequest(s);
         count++;
       } catch {
         // skip invalid entries silently

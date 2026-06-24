@@ -39,14 +39,14 @@ export function GroupDetail() {
     );
   }
 
-  const handleRequestAll = () => {
-    const count = sendAllPaymentRequests();
+  const handleRequestAll = async () => {
+    const count = await sendAllPaymentRequests();
     if (count === 0) {
       toast('No outstanding amounts to request. All settled!');
     } else {
       toast.success(
-        `${count} payment request${count !== 1 ? 's' : ''} sent! ` +
-        `Members will see them when they connect their wallet.`
+        `${count} request${count !== 1 ? 's' : ''} saved to cloud. ` +
+        `Members will see them automatically!`
       );
     }
   };

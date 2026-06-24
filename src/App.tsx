@@ -37,8 +37,14 @@ import { MobileNav } from './components/layout/MobileNav';
 import { RequestInbox } from './components/requests/RequestInbox';
 function useBalance() {
   const { address, setBalance } = useWalletStore();
+  const { syncGroups } = useGroupStore();
+  const { syncRequests } = useRequestStore();
 
   useEffect(() => {
+    // Initial Supabase Sync
+    syncGroups();
+    syncRequests();
+
     let cancelled = false;
     async function loadBalance() {
       if (!address) return;
@@ -52,12 +58,17 @@ function useBalance() {
     }
 
     loadBalance();
-    const timer = window.setInterval(loadBalance, 15000);
+    const timer = window.setInterval(() => {
+      loadBalance();
+      // Periodically sync Supabase
+      syncGroups();
+      syncRequests();
+    }, 15000);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [address, setBalance]);
+  }, [address, setBalance, syncGroups, syncRequests]);
 }
 
 function Navbar() {
