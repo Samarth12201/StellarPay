@@ -1,5 +1,8 @@
 # StellarPay – Smart Bill Splitting & QR Payments on Stellar
 
+[![CI](https://github.com/Samarth12201/StellarPay/actions/workflows/ci.yml/badge.svg)](https://github.com/Samarth12201/StellarPay/actions/workflows/ci.yml)
+[![Deploy to Vercel](https://github.com/Samarth12201/StellarPay/actions/workflows/deploy.yml/badge.svg)](https://github.com/Samarth12201/StellarPay/actions/workflows/deploy.yml)
+
 Split bills, send payment requests, and pay instantly with QR links on Stellar Testnet.
 
 ---
@@ -62,6 +65,31 @@ Stellar Wallets Kit · Soroban Smart Contracts (Rust)
 - **Hash:** `ba9b8565b86502f082566ac24a97ebe5d723eb1fe103ac1901b31ffb7c51417a` *(Verifiable on Stellar Explorer)*
 
 
+
+---
+
+## 🟠 Level 3 - Orange Belt Submission
+
+### 👉 Overview
+Transitioning the application into a production-grade decentralized group expense settlement tool. This level introduces a multi-contract architecture, robust test coverage, automated CI/CD pipelines, and responsive mobile-first UI design patterns.
+**Focus:** Advanced smart contracts, settlement optimization algorithms, CI/CD, and responsive UI.
+
+### What is implemented in this submission:
+- **GroupExpense Smart Contract:** A new Rust Soroban contract handling group creation and expense logging.
+- **Settlement Engine:** A minimum-transaction path algorithm ("net balance") implemented on the frontend to calculate the fewest possible payments needed to settle debts in a group.
+- **Comprehensive Testing:** Frontend unit tests using Vitest/Testing Library for the settlement engine and UI, plus Rust unit tests for the Soroban contract.
+- **CI/CD Pipeline:** GitHub Actions configured for automated linting, testing (frontend & contract), and automated Vercel deployments.
+- **Mobile-Responsive UI:** Introduction of `MobileNav` and a completely responsive layout using TailwindCSS.
+- **Production-Ready UX:** Implementation of Skeleton loaders during data fetch and a global React `ErrorBoundary` to gracefully handle unexpected crashes.
+- **Web Analytics:** Integrated Vercel Analytics to collect valuable insights on user behavior and site performance with detailed page view metrics, ensuring privacy-respecting traffic analysis.
+
+### ✅ Requirements Met
+- **Multiple Contracts & Inter-contract Calls:** Yes (Added `group_expense`).
+- **Data Indexing / Events:** Yes (Included in `group_expense` contract).
+- **Unit & Integration Tests:** Yes (Vitest for frontend, Rust for contract).
+- **CI/CD Pipeline:** Yes (GitHub Actions configured).
+- **Responsive UI / Mobile friendly:** Yes (`MobileNav` & Tailwind styling).
+- **Deployed to Vercel/Netlify:** Setup ready via GitHub Actions.
 
 ---
 

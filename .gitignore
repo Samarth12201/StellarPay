@@ -4,3 +4,4 @@ server/db.sqlite
 .env
 .agents/
 skills-lock.json
+contracts/**/target/

@@ -11,7 +11,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   LOCKED: '🔒 Wallet is locked. Please unlock it.',
 };
 
-export function WalletConnect() {
+export function WalletConnect({ label, className }: { label?: string; className?: string }) {
   const [loading, setLoading] = useState(false);
   const { openModal } = useWallet();
 
@@ -35,10 +35,10 @@ export function WalletConnect() {
     <button
       onClick={handleConnect}
       disabled={loading}
-      className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white px-5 py-2.5 rounded-xl font-medium transition-all disabled:opacity-60"
+      className={`flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white px-5 py-2.5 rounded-xl font-medium transition-all disabled:opacity-60 ${className || ''}`}
     >
       {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wallet className="w-4 h-4" />}
-      {loading ? 'Connecting...' : 'Connect Wallet'}
+      {loading ? 'Connecting...' : (label || 'Connect Wallet')}
     </button>
   );
 }

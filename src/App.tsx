@@ -18,7 +18,8 @@ import {
   Trash2,
   Wallet,
   FileCode,
-  Radio
+  Radio,
+  Users
 } from 'lucide-react';
 import { useRequestStore, useWalletStore } from './store';
 import type { Participant, PaymentRequest, TransactionResult } from './types';
@@ -29,6 +30,8 @@ import { WalletConnect } from './components/wallet/WalletConnect';
 import { TxStatusBar } from './components/tx/TxStatusBar';
 import { ContractRequests } from './components/contract/ContractRequests';
 import { EventFeed } from './components/events/EventFeed';
+import { GroupPage } from './pages/GroupPage';
+import { MobileNav } from './components/layout/MobileNav';
 
 function getFreighterError(error: unknown, fallback: string) {
   if (error instanceof Error) return error.message;
@@ -399,7 +402,7 @@ function RequestInbox() {
 
 function Dashboard() {
   const { address, isConnected } = useWalletStore();
-  const [active, setActive] = useState<'send' | 'split' | 'requests' | 'contract' | 'events'>('send');
+  const [active, setActive] = useState<'send' | 'split' | 'requests' | 'contract' | 'events' | 'groups'>('groups');
   const pendingCount = useRequestStore((store) => store.requests.filter((request) => request.status === 'pending' && request.from === address).length);
   const fetchRequests = useRequestStore((store) => store.fetchRequests);
   useBalance();
@@ -415,6 +418,7 @@ function Dashboard() {
   const tabs = useMemo(() => [
     ['send', Send, 'Send XLM'],
     ['split', Calculator, 'Split Bill'],
+    ['groups', Users, 'Groups'],
     ['requests', Inbox, 'Requests'],
     ['contract', FileCode, 'Contract'],
     ['events', Radio, 'Live Feed'],
@@ -442,9 +446,10 @@ function Dashboard() {
         <section className="dashMain">
           <h2>{tabs.find(([id]) => id === active)?.[2]}</h2>
           <p>{active === 'send' ? 'Transfer XLM on Stellar Testnet' : active === 'split' ? 'Divide expenses between friends' : active === 'requests' ? 'Pending requests from bill splits' : active === 'contract' ? 'Interact with the Payment Request Contract' : 'Live Contract Events'}</p>
-          <div className="panel">
+          <div className="panel" style={{ paddingBottom: '80px' }}>
             {active === 'send' && <SendForm />}
             {active === 'split' && <BillSplitter />}
+            {active === 'groups' && <GroupPage />}
             {active === 'requests' && <RequestInbox />}
             {active === 'contract' && <ContractRequests />}
             {active === 'events' && <EventFeed />}
@@ -452,13 +457,14 @@ function Dashboard() {
         </section>
       </main>
       <TxStatusBar />
+      <MobileNav active={active} setActive={setActive} />
     </>
   );
 }
 
 function PayPage() {
   const [params] = useSearchParams();
-  const { isConnected } = useWalletStore();
+  const { isConnected, address } = useWalletStore();
   const { addRequests } = useRequestStore();
   const to = params.get('address') ?? '';
   const amount = params.get('amount') ?? '';
