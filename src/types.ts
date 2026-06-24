@@ -20,51 +20,54 @@ export interface Participant {
   amount?: number;
 }
 
-export interface PaymentRequest {
-  id: string;
-  from: string;
-  toAddress: string;
-  amount: string;
-  memo?: string;
-  status: 'pending' | 'paid' | 'rejected';
-  createdAt: string;
-}
-
-export interface Group {
-  id: string;
-  name: string;
-  contractId?: string;      // on-chain group ID
-  members: GroupMember[];
-  expenses: Expense[];
-  createdAt: Date;
-}
-
 export interface GroupMember {
+  id: string;
   name: string;
-  address: string;
+  address: string;       // REQUIRED — Stellar G... public key
   avatarColor: string;
 }
 
 export interface Expense {
   id: string;
   description: string;
-  amount: number;           // in XLM
-  paidBy: string;           // member address
-  splitAmong: string[];     // member addresses
+  totalAmount: number;   // in XLM
+  paidBy: string;        // member.id of who paid
+  splitAmong: string[];  // array of member.id values
   date: Date;
-  txHash?: string;          // if settled on-chain
+  txHash?: string;
 }
 
 export interface Settlement {
-  from: string;             // address of payer
-  to: string;               // address of receiver
-  amount: number;
+  from: string;          // member.id of who pays
+  to: string;            // member.id of who receives
+  fromAddress: string;   // Stellar G... of payer
+  toAddress: string;     // Stellar G... of receiver
   fromName: string;
   toName: string;
+  amount: number;        // XLM
+  paid?: boolean;
+  txHash?: string;
 }
 
-export interface DebtMatrix {
-  [debtor: string]: {
-    [creditor: string]: number;
-  };
+export interface Group {
+  id: string;
+  name: string;
+  members: GroupMember[];
+  expenses: Expense[];
+  createdAt: Date;
+}
+
+export interface PaymentRequest {
+  id: string;
+  groupId?: string;
+  groupName?: string;
+  fromMemberId: string;
+  fromName: string;
+  fromAddress: string;     // who created the request (receiver)
+  toAddress: string;       // who must pay (connected wallet)
+  amount: string;
+  memo: string;
+  status: 'pending' | 'paid' | 'rejected';
+  createdAt: Date;
+  txHash?: string;
 }

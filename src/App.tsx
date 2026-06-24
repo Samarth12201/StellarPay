@@ -24,23 +24,17 @@ import {
 import { useRequestStore, useWalletStore } from './store';
 import type { Participant, PaymentRequest, TransactionResult } from './types';
 import { formatXlm, isValidStellarAddress, server, truncateAddress } from './utils';
+import { useGroupStore } from './store/groupStore';
 
 import { useWallet } from './hooks/useWallet';
+import { useSendPayment, getFreighterError } from './hooks/useSendPayment';
 import { WalletConnect } from './components/wallet/WalletConnect';
 import { TxStatusBar } from './components/tx/TxStatusBar';
 import { ContractRequests } from './components/contract/ContractRequests';
 import { EventFeed } from './components/events/EventFeed';
 import { GroupPage } from './pages/GroupPage';
 import { MobileNav } from './components/layout/MobileNav';
-
-function getFreighterError(error: unknown, fallback: string) {
-  if (error instanceof Error) return error.message;
-  if (typeof error === 'object' && error && 'message' in error) return String(error.message);
-  return fallback;
-}
-
-
-
+import { RequestInbox } from './components/requests/RequestInbox';
 function useBalance() {
   const { address, setBalance } = useWalletStore();
 
@@ -64,49 +58,6 @@ function useBalance() {
       window.clearInterval(timer);
     };
   }, [address, setBalance]);
-}
-
-function useSendPayment() {
-  const { address } = useWalletStore();
-  const { signXdr } = useWallet();
-  const [result, setResult] = useState<TransactionResult | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const sendPayment = async (to: string, amount: string, memo?: string) => {
-    if (!address) throw new Error('Connect Freighter first.');
-    if (!isValidStellarAddress(to)) throw new Error('Recipient must be a valid Stellar public key.');
-
-    setLoading(true);
-    setError(null);
-    setResult(null);
-
-    try {
-      const source = await server.loadAccount(address);
-      let builder = new TransactionBuilder(source, {
-        fee: BASE_FEE,
-        networkPassphrase: Networks.TESTNET,
-      }).addOperation(Operation.payment({ destination: to, asset: Asset.native(), amount })).setTimeout(180);
-
-      if (memo) builder = builder.addMemo(Memo.text(memo.slice(0, 28)));
-      const transaction = builder.build();
-      const signedXdr = await signXdr(transaction.toXDR());
-
-      const signedTx = TransactionBuilder.fromXDR(signedXdr, Networks.TESTNET);
-      const response = await server.submitTransaction(signedTx);
-      const tx = { hash: response.hash, to, amount, memo, status: 'success' as const, timestamp: new Date() };
-      setResult(tx);
-      return tx;
-    } catch (error) {
-      const message = getFreighterError(error, 'Transaction failed.');
-      setError(message);
-      throw new Error(message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return { sendPayment, result, loading, error, reset: () => { setResult(null); setError(null); } };
 }
 
 function Navbar() {
@@ -260,87 +211,18 @@ function SendForm({ preset }: { preset?: { to?: string; amount?: string; memo?: 
 }
 
 
-
-function RequestInbox() {
-  const { address } = useWalletStore();
-  const { requests, updateStatus } = useRequestStore();
-  const { sendPayment, loading } = useSendPayment();
-  const [tab, setTab] = useState<'received' | 'sent'>('received');
-
-  const received = requests.filter((r) => r.status === 'pending' && r.from === address);
-  const sent = requests.filter((r) => r.status === 'pending' && r.toAddress === address);
-
-  async function pay(request: PaymentRequest) {
-    try {
-      await sendPayment(request.toAddress, request.amount, request.memo);
-      updateStatus(request.id, 'paid');
-      toast.success(`Paid ${request.amount} XLM`);
-    } catch (error) {
-      toast.error(getFreighterError(error, 'Could not pay request.'));
-    }
-  }
-
-  function copyLink(request: PaymentRequest) {
-    const url = `${window.location.origin}/pay?address=${request.toAddress}&amount=${request.amount}&memo=${encodeURIComponent(request.memo || '')}`;
-    navigator.clipboard.writeText(url);
-    toast.success('Payment link copied!');
-  }
-
-  const list = tab === 'received' ? received : sent;
-
-  return (
-    <div className="requestsBox">
-      <div className="toggle" style={{ marginBottom: '16px' }}>
-        <button className={tab === 'received' ? 'active' : ''} onClick={() => setTab('received')}>Received ({received.length})</button>
-        <button className={tab === 'sent' ? 'active' : ''} onClick={() => setTab('sent')}>Sent ({sent.length})</button>
-      </div>
-
-      {list.length === 0 ? (
-        <div className="empty"><Inbox size={34} /><p>No pending {tab} requests</p></div>
-      ) : (
-        <div className="requests">
-          {list.map((request) => (
-            <article className="requestCard" key={request.id}>
-              <div>
-                <h4>{tab === 'received' ? `${truncateAddress(request.from, 8) || 'Someone'} requests payment` : `You requested from ${truncateAddress(request.from, 8) || 'Someone'}`}</h4>
-                <p>{request.memo}</p>
-              </div>
-              <strong>{request.amount} XLM</strong>
-              <div className="row">
-                {tab === 'received' ? (
-                  <>
-                    <button className="btn ghost danger" onClick={() => updateStatus(request.id, 'rejected')}>Reject</button>
-                    <button className="btn primary" disabled={loading || !request.toAddress} onClick={() => pay(request)}>Pay →</button>
-                  </>
-                ) : (
-                  <>
-                    <button className="btn ghost danger" onClick={() => updateStatus(request.id, 'rejected')}>Cancel</button>
-                    <button className="btn primary" onClick={() => copyLink(request)}><Copy size={16} /> Copy Link</button>
-                  </>
-                )}
-              </div>
-            </article>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function Dashboard() {
   const { address, isConnected } = useWalletStore();
   const [active, setActive] = useState<'send' | 'requests' | 'contract' | 'events' | 'groups'>('groups');
-  const pendingCount = useRequestStore((store) => store.requests.filter((request) => request.status === 'pending' && request.from === address).length);
-  const fetchRequests = useRequestStore((store) => store.fetchRequests);
+  
+  const { getIncoming } = useRequestStore();
+  
+  const pendingCount = useMemo(() => {
+    if (!address) return 0;
+    return getIncoming(address).length;
+  }, [getIncoming, address]);
+  
   useBalance();
-
-
-
-  useEffect(() => {
-    if (address) {
-      fetchRequests(address);
-    }
-  }, [address, fetchRequests]);
 
   const tabs = useMemo(() => [
     ['groups', Users, 'Split Bills (Groups)'],
@@ -397,13 +279,13 @@ function PayPage() {
 
   function saveForLater() {
     addRequests([{
-      id: nanoid(),
-      from: address || 'Saved Link',
+      fromAddress: 'Saved Link',
+      fromMemberId: 'guest',
+      fromName: 'Guest',
       toAddress: to,
       amount: amount,
       memo: memo,
       status: 'pending',
-      createdAt: new Date().toISOString(),
     }]);
     toast.success('Saved to your Requests Inbox!');
   }
@@ -436,7 +318,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<Landing />} />
-      <Route path="/dashboard" element={<Dashboard />} />
+      <Route path="/dashboard/*" element={<Dashboard />} />
       <Route path="/pay" element={<PayPage />} />
     </Routes>
   );

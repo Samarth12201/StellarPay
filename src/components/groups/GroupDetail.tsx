@@ -1,108 +1,208 @@
-import { Group } from '../../types';
-import { ArrowLeft, PlusCircle } from 'lucide-react';
-import { useSettlement } from '../../hooks/useSettlement';
+import { useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { ArrowLeft, Plus, Users, Receipt, Send, Bell } from 'lucide-react';
+import { useGroupSettlement } from '../../hooks/useGroupSettlement';
+import { useWalletStore } from '../../store/walletStore';
 import { SettlementView } from './SettlementView';
+import { AddExpense } from './AddExpense';
+import { Settlement } from '../../types';
+import toast from 'react-hot-toast';
 
-interface Props {
-  group: Group;
-  onBack: () => void;
-  onAddExpense: () => void;
-}
+type Tab = 'expenses' | 'settle' | 'members';
 
-export function GroupDetail({ group, onBack, onAddExpense }: Props) {
-  const { settlements, total, shares } = useSettlement(group.id);
+export function GroupDetail() {
+  const { groupId } = useParams<{ groupId: string }>();
+  const navigate = useNavigate();
+  const { address } = useWalletStore();
+  const [tab, setTab] = useState<Tab>('expenses');
+  const [showAddExpense, setShowAddExpense] = useState(false);
+
+  const {
+    group,
+    settlements,
+    myBalance,
+    total,
+    paying,
+    paySettlement,
+    requestSettlement,
+    requestAllSettlements,
+  } = useGroupSettlement(groupId!);
+
+  if (!group) {
+    return (
+      <div className="p-6 text-center text-gray-400">
+        Group not found.
+        <button onClick={() => navigate('/dashboard')} className="ml-2 text-violet-600 hover:underline">
+          Back to groups
+        </button>
+      </div>
+    );
+  }
+
+  const handleRequestAll = () => {
+    const count = requestAllSettlements();
+    if (count === 0) {
+      toast('All settlements are already settled!');
+    } else {
+      toast.success(`${count} payment request${count !== 1 ? 's' : ''} sent to group members`);
+    }
+  };
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-lg mx-auto px-4 py-5 space-y-5">
+      {/* Header */}
       <div className="flex items-center gap-3">
         <button
-          onClick={onBack}
-          className="p-1.5 hover:bg-gray-100 rounded-full transition-colors"
+          onClick={() => navigate('/dashboard')}
+          className="p-2 hover:bg-gray-100 rounded-lg text-gray-500"
         >
-          <ArrowLeft className="w-5 h-5 text-gray-600" />
+          <ArrowLeft className="w-5 h-5" />
         </button>
-        <h2 className="text-2xl font-bold text-gray-900">{group.name}</h2>
+        <div className="flex-1">
+          <h1 className="text-xl font-bold text-gray-900">{group.name}</h1>
+          <p className="text-sm text-gray-400">
+            {group.members.length} members · {group.expenses.length} expenses
+          </p>
+        </div>
+        <button
+          onClick={() => setShowAddExpense(true)}
+          className="flex items-center gap-1.5 bg-violet-600 text-white px-3 py-2 rounded-xl text-sm font-semibold hover:bg-violet-700"
+        >
+          <Plus className="w-4 h-4" /> Add expense
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="col-span-2 space-y-6">
-          <div className="bg-white border border-gray-200 rounded-2xl p-5 flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500 font-medium">Total Spent</p>
-              <p className="text-3xl font-bold text-gray-900">{total} XLM</p>
+      {/* Balance summary */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-gray-50 rounded-xl p-3 text-center">
+          <p className="text-xs text-gray-500">Total spent</p>
+          <p className="text-base font-bold text-gray-900 mt-0.5">{total} XLM</p>
+        </div>
+        <div className={`rounded-xl p-3 text-center ${myBalance.net >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
+          <p className="text-xs text-gray-500">Your balance</p>
+          <p className={`text-base font-bold mt-0.5 ${myBalance.net >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+            {myBalance.net >= 0 ? '+' : ''}{myBalance.net} XLM
+          </p>
+        </div>
+        <div className="bg-violet-50 rounded-xl p-3 text-center">
+          <p className="text-xs text-gray-500">To settle</p>
+          <p className="text-base font-bold text-violet-700 mt-0.5">
+            {settlements.filter((s) => !s.paid).length} txns
+          </p>
+        </div>
+      </div>
+
+      {/* Tab bar */}
+      <div className="flex bg-gray-100 p-1 rounded-2xl gap-1">
+        {([
+          { id: 'expenses', label: 'Expenses', icon: Receipt },
+          { id: 'settle',   label: 'Settle up', icon: Send },
+          { id: 'members',  label: 'Members', icon: Users },
+        ] as const).map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            onClick={() => setTab(id)}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition-all ${
+              tab === id ? 'bg-white text-violet-600 shadow-sm' : 'text-gray-500'
+            }`}
+          >
+            <Icon className="w-3.5 h-3.5" />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Expenses tab */}
+      {tab === 'expenses' && (
+        <div className="space-y-2">
+          {showAddExpense && (
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+              <AddExpense groupId={group.id} onDone={() => setShowAddExpense(false)} />
             </div>
+          )}
+          {group.expenses.length === 0 ? (
+            <div className="text-center py-10 text-gray-400">
+              <Receipt className="w-8 h-8 mx-auto mb-2 opacity-40" />
+              <p className="text-sm">No expenses yet. Add one!</p>
+            </div>
+          ) : (
+            group.expenses.map((e) => {
+              const payer = group.members.find((m) => m.id === e.paidBy);
+              const share = e.totalAmount / e.splitAmong.length;
+              return (
+                <div key={e.id} className="border border-gray-200 rounded-xl p-4 flex items-start gap-3">
+                  <div
+                    className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0"
+                    style={{ background: payer?.avatarColor ?? '#7C3AED' }}
+                  >
+                    {payer?.name[0].toUpperCase() ?? '?'}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-gray-800">{e.description}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      Paid by {payer?.name ?? 'unknown'} · split {e.splitAmong.length} ways ({share.toFixed(2)} XLM each)
+                    </p>
+                    {e.txHash && (
+                      <p className="text-xs text-green-600 mt-0.5">✓ Settled on-chain</p>
+                    )}
+                  </div>
+                  <span className="text-sm font-bold text-gray-900">{e.totalAmount} XLM</span>
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+
+      {/* Settle tab — THE FIXED PART */}
+      {tab === 'settle' && (
+        <div className="space-y-4">
+          {settlements.length > 0 && (
             <button
-              onClick={onAddExpense}
-              className="flex items-center gap-1.5 bg-violet-600 text-white px-4 py-2 rounded-xl font-medium hover:bg-violet-700 transition-colors"
+              onClick={handleRequestAll}
+              className="w-full flex items-center justify-center gap-2 border border-violet-200 text-violet-600 py-2.5 rounded-xl text-sm font-semibold hover:bg-violet-50"
             >
-              <PlusCircle className="w-5 h-5" />
-              Add Expense
+              <Bell className="w-4 h-4" />
+              Send all payment requests to group
             </button>
-          </div>
+          )}
+          <SettlementView
+            settlements={settlements}
+            myAddress={address ?? ''}
+            onPay={paySettlement}
+            onRequest={requestSettlement}
+            paying={paying}
+          />
+        </div>
+      )}
 
-          <div className="space-y-3">
-            <h3 className="font-semibold text-gray-800 text-lg">Expenses</h3>
-            {group.expenses.length === 0 ? (
-              <p className="text-sm text-gray-500 text-center py-4 bg-gray-50 rounded-xl border border-gray-100">
-                No expenses yet. Add one to get started!
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {group.expenses.map((expense) => (
-                  <div key={expense.id} className="bg-white border border-gray-100 rounded-xl p-4 flex justify-between items-center shadow-sm">
-                    <div>
-                      <p className="font-medium text-gray-900">{expense.description}</p>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        Paid by {group.members.find(m => m.address === expense.paidBy)?.name || expense.paidBy.slice(0, 6)}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold text-gray-900">{expense.amount} XLM</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{new Date(expense.date).toLocaleDateString()}</p>
-                    </div>
-                  </div>
-                ))}
+      {/* Members tab */}
+      {tab === 'members' && (
+        <div className="space-y-2">
+          {group.members.map((m) => {
+            const bal = myBalance; // simplified — you can call memberBalance per member
+            return (
+              <div key={m.id} className="flex items-center gap-3 border border-gray-200 rounded-xl p-3">
+                <div
+                  className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white"
+                  style={{ background: m.avatarColor }}
+                >
+                  {m.name[0].toUpperCase()}
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-gray-800">{m.name}</p>
+                  <p className="text-xs font-mono text-gray-400 truncate">
+                    {m.address.slice(0, 12)}...{m.address.slice(-4)}
+                  </p>
+                </div>
+                {m.address === address && (
+                  <span className="text-xs bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full">you</span>
+                )}
               </div>
-            )}
-          </div>
+            );
+          })}
         </div>
-
-        <div className="space-y-6">
-          <div className="bg-violet-50 rounded-2xl p-5 border border-violet-100">
-            <h3 className="font-semibold text-violet-900 mb-4 text-lg">Settlements</h3>
-            <SettlementView
-              settlements={settlements}
-              onPay={(s) => {
-                alert(`Initiating payment of ${s.amount} XLM to ${s.toName}. Hook this up to Freighter!`);
-              }}
-              loading={false}
-            />
-          </div>
-
-          <div className="bg-white border border-gray-200 rounded-2xl p-5">
-            <h3 className="font-semibold text-gray-800 mb-3 text-lg">Balances</h3>
-            <div className="space-y-3">
-              {group.members.map(m => {
-                const net = shares[m.address]?.net || 0;
-                const isPositive = net > 0;
-                return (
-                  <div key={m.address} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] text-white font-bold" style={{ backgroundColor: m.avatarColor }}>
-                        {m.name.charAt(0).toUpperCase()}
-                      </div>
-                      <span className="text-sm font-medium text-gray-700">{m.name}</span>
-                    </div>
-                    <span className={`text-sm font-bold ${net === 0 ? 'text-gray-400' : isPositive ? 'text-green-600' : 'text-red-600'}`}>
-                      {isPositive ? '+' : ''}{net}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

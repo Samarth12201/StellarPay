@@ -1,21 +1,17 @@
 import { useGroupStore } from '../../store/groupStore';
 import { Users, Plus } from 'lucide-react';
-import { Group } from '../../types';
+import { useNavigate } from 'react-router-dom';
 
-interface Props {
-  onSelectGroup: (group: Group) => void;
-  onCreateNew: () => void;
-}
-
-export function GroupList({ onSelectGroup, onCreateNew }: Props) {
+export function GroupList() {
   const { groups } = useGroupStore();
+  const navigate = useNavigate();
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold text-gray-900">Your Groups</h2>
         <button
-          onClick={onCreateNew}
+          onClick={() => navigate('new')}
           className="flex items-center gap-1 text-sm bg-violet-100 text-violet-700 px-3 py-1.5 rounded-lg font-medium hover:bg-violet-200"
         >
           <Plus className="w-4 h-4" /> New Group
@@ -32,7 +28,7 @@ export function GroupList({ onSelectGroup, onCreateNew }: Props) {
             Create a group to split expenses with friends.
           </p>
           <button
-            onClick={onCreateNew}
+            onClick={() => navigate('new')}
             className="text-sm bg-violet-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-violet-700"
           >
             Create First Group
@@ -43,7 +39,7 @@ export function GroupList({ onSelectGroup, onCreateNew }: Props) {
           {groups.map((group) => (
             <div
               key={group.id}
-              onClick={() => onSelectGroup(group)}
+              onClick={() => navigate(group.id)}
               className="border border-gray-200 rounded-xl p-4 cursor-pointer hover:border-violet-300 hover:shadow-sm transition-all"
             >
               <h3 className="font-semibold text-gray-900">{group.name}</h3>
