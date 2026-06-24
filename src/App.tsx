@@ -280,7 +280,6 @@ function PayPage() {
   function saveForLater() {
     addRequests([{
       fromAddress: 'Saved Link',
-      fromMemberId: 'guest',
       fromName: 'Guest',
       toAddress: to,
       amount: amount,

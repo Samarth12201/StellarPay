@@ -11,8 +11,8 @@ const AVATAR_COLORS = [
 interface GroupStore {
   groups: Group[];
   createGroup: (name: string, members: Array<{ name: string; address: string }>) => string;
-  addExpense: (groupId: string, exp: Omit<Expense, 'id' | 'date'>) => string;
-  markExpensePaid: (groupId: string, expenseId: string, txHash: string) => void;
+  addExpense: (groupId: string, expense: Omit<Expense, 'id' | 'date' | 'settled'>) => string;
+  markExpenseSettled: (groupId: string, expenseId: string) => void;
   deleteGroup: (id: string) => void;
   getGroup: (id: string) => Group | undefined;
 }
@@ -29,8 +29,8 @@ export const useGroupStore = create<GroupStore>()(
           name,
           members: members.map((m, i) => ({
             id: nanoid(),
-            name: m.name,
-            address: m.address,
+            name: m.name.trim(),
+            address: m.address.trim(),
             avatarColor: AVATAR_COLORS[i % AVATAR_COLORS.length],
           })),
           expenses: [],
@@ -40,26 +40,32 @@ export const useGroupStore = create<GroupStore>()(
         return id;
       },
 
-      addExpense: (groupId, exp) => {
-        const expId = nanoid();
+      addExpense: (groupId, expense) => {
+        const expenseId = nanoid();
+        const newExpense: Expense = {
+          ...expense,
+          id: expenseId,
+          date: new Date(),
+          settled: false,
+        };
         set((s) => ({
           groups: s.groups.map((g) =>
             g.id === groupId
-              ? { ...g, expenses: [...g.expenses, { ...exp, id: expId, date: new Date() }] }
+              ? { ...g, expenses: [...g.expenses, newExpense] }
               : g
           ),
         }));
-        return expId;
+        return expenseId;
       },
 
-      markExpensePaid: (groupId, expenseId, txHash) =>
+      markExpenseSettled: (groupId, expenseId) =>
         set((s) => ({
           groups: s.groups.map((g) =>
             g.id === groupId
               ? {
                   ...g,
                   expenses: g.expenses.map((e) =>
-                    e.id === expenseId ? { ...e, txHash } : e
+                    e.id === expenseId ? { ...e, settled: true } : e
                   ),
                 }
               : g
@@ -71,6 +77,6 @@ export const useGroupStore = create<GroupStore>()(
 
       getGroup: (id) => get().groups.find((g) => g.id === id),
     }),
-    { name: 'stellarpay-groups-v2' }
+    { name: 'stellarpay-groups-v3' }
   )
 );

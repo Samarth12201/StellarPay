@@ -24,8 +24,8 @@ export function GroupDetail() {
     total,
     paying,
     paySettlement,
-    requestSettlement,
-    requestAllSettlements,
+    sendPaymentRequest,
+    sendAllPaymentRequests,
   } = useGroupSettlement(groupId!);
 
   if (!group) {
@@ -40,13 +40,20 @@ export function GroupDetail() {
   }
 
   const handleRequestAll = () => {
-    const count = requestAllSettlements();
+    const count = sendAllPaymentRequests();
     if (count === 0) {
-      toast('All settlements are already settled!');
+      toast('No outstanding amounts to request. All settled!');
     } else {
-      toast.success(`${count} payment request${count !== 1 ? 's' : ''} sent to group members`);
+      toast.success(
+        `${count} payment request${count !== 1 ? 's' : ''} sent! ` +
+        `Members will see them when they connect their wallet.`
+      );
     }
   };
+
+  const unsettledCount = settlements.length;
+  const myOutgoing = settlements.filter((s) => s.fromAddress === address);
+  const myIncoming = settlements.filter((s) => s.toAddress === address);
 
   return (
     <div className="max-w-lg mx-auto px-4 py-5 space-y-5">
@@ -75,22 +82,52 @@ export function GroupDetail() {
       {/* Balance summary */}
       <div className="grid grid-cols-3 gap-3">
         <div className="bg-gray-50 rounded-xl p-3 text-center">
-          <p className="text-xs text-gray-500">Total spent</p>
-          <p className="text-base font-bold text-gray-900 mt-0.5">{total} XLM</p>
+          <p className="text-xs text-gray-500 mb-0.5">Total</p>
+          <p className="text-base font-bold text-gray-900">{total} XLM</p>
         </div>
-        <div className={`rounded-xl p-3 text-center ${myBalance.net >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
-          <p className="text-xs text-gray-500">Your balance</p>
-          <p className={`text-base font-bold mt-0.5 ${myBalance.net >= 0 ? 'text-green-700' : 'text-red-600'}`}>
-            {myBalance.net >= 0 ? '+' : ''}{myBalance.net} XLM
+        <div className={`rounded-xl p-3 text-center ${
+          myBalance.net > 0 ? 'bg-green-50' : myBalance.net < 0 ? 'bg-red-50' : 'bg-gray-50'
+        }`}>
+          <p className="text-xs text-gray-500 mb-0.5">Your balance</p>
+          <p className={`text-base font-bold ${
+            myBalance.net > 0 ? 'text-green-700' : myBalance.net < 0 ? 'text-red-600' : 'text-gray-700'
+          }`}>
+            {myBalance.net > 0 ? '+' : ''}{myBalance.net} XLM
           </p>
         </div>
         <div className="bg-violet-50 rounded-xl p-3 text-center">
-          <p className="text-xs text-gray-500">To settle</p>
-          <p className="text-base font-bold text-violet-700 mt-0.5">
-            {settlements.filter((s) => !s.paid).length} txns
-          </p>
+          <p className="text-xs text-gray-500 mb-0.5">To settle</p>
+          <p className="text-base font-bold text-violet-700">{unsettledCount} tx</p>
         </div>
       </div>
+
+      {/* My obligations callout */}
+      {myOutgoing.length > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+          <p className="text-sm font-semibold text-red-800">
+            You owe {myOutgoing.length} payment{myOutgoing.length !== 1 ? 's' : ''} totalling{' '}
+            {myOutgoing.reduce((s, t) => s + t.amount, 0).toFixed(2)} XLM
+          </p>
+          <p className="text-xs text-red-600 mt-0.5">Go to Settle Up tab to pay</p>
+        </div>
+      )}
+
+      {myIncoming.length > 0 && (
+        <div className="bg-violet-50 border border-violet-200 rounded-xl px-4 py-3 flex items-start justify-between gap-2">
+          <div>
+            <p className="text-sm font-semibold text-violet-800">
+              You are owed {myIncoming.reduce((s, t) => s + t.amount, 0).toFixed(2)} XLM
+            </p>
+            <p className="text-xs text-violet-600 mt-0.5">from {myIncoming.length} people</p>
+          </div>
+          <button
+            onClick={handleRequestAll}
+            className="flex-shrink-0 bg-white border border-violet-200 text-violet-700 px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-violet-100"
+          >
+            Request All
+          </button>
+        </div>
+      )}
 
       {/* Tab bar */}
       <div className="flex bg-gray-100 p-1 rounded-2xl gap-1">
@@ -142,7 +179,7 @@ export function GroupDetail() {
                     <p className="text-xs text-gray-400 mt-0.5">
                       Paid by {payer?.name ?? 'unknown'} · split {e.splitAmong.length} ways ({share.toFixed(2)} XLM each)
                     </p>
-                    {e.txHash && (
+                    {e.settled && (
                       <p className="text-xs text-green-600 mt-0.5">✓ Settled on-chain</p>
                     )}
                   </div>
@@ -170,7 +207,7 @@ export function GroupDetail() {
             settlements={settlements}
             myAddress={address ?? ''}
             onPay={paySettlement}
-            onRequest={requestSettlement}
+            onRequest={sendPaymentRequest}
             paying={paying}
           />
         </div>
