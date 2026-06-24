@@ -61,7 +61,7 @@ Stellar Wallets Kit · Soroban Smart Contracts (Rust)
 ### 🔗 Transaction hash of a contract call
 - **Hash:** `ba9b8565b86502f082566ac24a97ebe5d723eb1fe103ac1901b31ffb7c51417a` *(Verifiable on Stellar Explorer)*
 
-![stellar_expert_tx](./screenshots/stellar_expert_tx.png)
+
 
 ---
 
