@@ -37,43 +37,24 @@ interface RequestStore {
   clear: () => void;
 }
 
-export const useRequestStore = create<RequestStore>((set, get) => ({
-  requests: [],
-  fetchRequests: async (address: string) => {
-    if (!address) return;
-    try {
-      const res = await fetch(`/api/requests/${address}`);
-      const data = await res.json();
-      set({ requests: data });
-    } catch (err) {
-      console.error('Failed to fetch requests', err);
-    }
-  },
-  addRequests: async (reqs) => {
-    try {
-      await fetch('/api/requests', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(reqs)
-      });
-      set((state) => ({ requests: [...reqs, ...state.requests] }));
-    } catch (err) {
-      console.error('Failed to add requests', err);
-    }
-  },
-  updateStatus: async (id, status) => {
-    try {
-      await fetch(`/api/requests/${id}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status })
-      });
-      set((state) => ({
-        requests: state.requests.map((request) => (request.id === id ? { ...request, status } : request))
-      }));
-    } catch (err) {
-      console.error('Failed to update status', err);
-    }
-  },
-  clear: () => set({ requests: [] }),
-}));
+export const useRequestStore = create<RequestStore>()(
+  persist(
+    (set, get) => ({
+      requests: [],
+      fetchRequests: async (address: string) => {
+        // In a purely local demo, we just rely on the persisted state.
+        // We can filter the state here if needed, but for the demo we'll just keep all requests in the store.
+      },
+      addRequests: async (reqs) => {
+        set((state) => ({ requests: [...reqs, ...state.requests] }));
+      },
+      updateStatus: async (id, status) => {
+        set((state) => ({
+          requests: state.requests.map((request) => (request.id === id ? { ...request, status } : request))
+        }));
+      },
+      clear: () => set({ requests: [] }),
+    }),
+    { name: 'stellarpay-requests' }
+  )
+);
