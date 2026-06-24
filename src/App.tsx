@@ -259,79 +259,6 @@ function SendForm({ preset }: { preset?: { to?: string; amount?: string; memo?: 
   );
 }
 
-function BillSplitter() {
-  const { address } = useWalletStore();
-  const { addRequests } = useRequestStore();
-  const [title, setTitle] = useState('');
-  const [total, setTotal] = useState('');
-  const [splitType, setSplitType] = useState<'equal' | 'custom'>('equal');
-  const [participants, setParticipants] = useState<Participant[]>([{ id: nanoid(), address: '' }, { id: nanoid(), address: '' }]);
-  const [splits, setSplits] = useState<Array<{ address: string; owes: number }> | null>(null);
-
-  function updateParticipant(id: string, field: 'address' | 'amount', value: string) {
-    setParticipants((items) => items.map((item) => (item.id === id ? { ...item, [field]: field === 'amount' ? Number(value) : value } : item)));
-  }
-
-  function calculate() {
-    const totalAmount = Number(total);
-    const walletParticipants = participants.filter((participant) => participant.address.trim());
-    if (!totalAmount || walletParticipants.length === 0) {
-      toast.error('Add a total and at least one wallet address.');
-      return;
-    }
-    const invalid = walletParticipants.find((participant) => !isValidStellarAddress(participant.address));
-    if (invalid) {
-      toast.error(`Invalid Stellar address: ${truncateAddress(invalid.address, 5)}`);
-      return;
-    }
-    const next = splitType === 'equal'
-      ? walletParticipants.map((participant) => ({ address: participant.address, owes: Number((totalAmount / walletParticipants.length).toFixed(7)) }))
-      : walletParticipants.map((participant) => ({ address: participant.address, owes: Number((participant.amount || 0).toFixed(7)) }));
-    setSplits(next);
-  }
-
-  function createRequests() {
-    if (!address || !splits) return;
-    const requests: PaymentRequest[] = splits.map((split) => ({
-      id: nanoid(),
-      from: split.address,
-      toAddress: address,
-      amount: String(split.owes),
-      memo: title || 'Bill Split',
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-    }));
-    addRequests(requests);
-    toast.success(`${requests.length} payment requests created.`);
-  }
-
-  return (
-    <div className="form">
-      <label>Bill Title<input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="e.g. Goa Trip Dinner" /></label>
-      <label>Total Amount (XLM)<input value={total} onChange={(event) => setTotal(event.target.value)} type="number" placeholder="0.00" /></label>
-      <div className="toggle">
-        <button className={splitType === 'equal' ? 'active' : ''} onClick={() => setSplitType('equal')}>Equal Split</button>
-        <button className={splitType === 'custom' ? 'active' : ''} onClick={() => setSplitType('custom')}>Custom Split</button>
-      </div>
-      {participants.map((participant) => (
-        <div className="participant" key={participant.id}>
-          <input value={participant.address} onChange={(event) => updateParticipant(participant.id, 'address', event.target.value)} placeholder="Participant wallet address (G...)" />
-          {splitType === 'custom' && <input value={participant.amount ?? ''} onChange={(event) => updateParticipant(participant.id, 'amount', event.target.value)} type="number" placeholder="XLM" />}
-          <button onClick={() => setParticipants((items) => items.filter((item) => item.id !== participant.id))}><Trash2 size={15} /></button>
-        </div>
-      ))}
-      <button className="add" onClick={() => setParticipants((items) => [...items, { id: nanoid(), address: '' }])}>+ Add Wallet Address</button>
-      <button className="btn primary full" onClick={calculate}><Calculator size={16} /> Calculate Split →</button>
-      {splits && (
-        <div className="splitResults">
-          <h4>{title || 'Bill Split'} · {total} XLM</h4>
-          {splits.map((split) => <div className="splitRow" key={split.address}><span>{truncateAddress(split.address, 8)}</span><strong>{split.owes} XLM</strong></div>)}
-          <button className="btn ghost full" onClick={createRequests} disabled={!address}>Create Payment Requests</button>
-        </div>
-      )}
-    </div>
-  );
-}
 
 
 function RequestInbox() {
@@ -402,7 +329,7 @@ function RequestInbox() {
 
 function Dashboard() {
   const { address, isConnected } = useWalletStore();
-  const [active, setActive] = useState<'send' | 'split' | 'requests' | 'contract' | 'events' | 'groups'>('groups');
+  const [active, setActive] = useState<'send' | 'requests' | 'contract' | 'events' | 'groups'>('groups');
   const pendingCount = useRequestStore((store) => store.requests.filter((request) => request.status === 'pending' && request.from === address).length);
   const fetchRequests = useRequestStore((store) => store.fetchRequests);
   useBalance();
@@ -416,9 +343,8 @@ function Dashboard() {
   }, [address, fetchRequests]);
 
   const tabs = useMemo(() => [
+    ['groups', Users, 'Split Bills (Groups)'],
     ['send', Send, 'Send XLM'],
-    ['split', Calculator, 'Split Bill'],
-    ['groups', Users, 'Groups'],
     ['requests', Inbox, 'Requests'],
     ['contract', FileCode, 'Contract'],
     ['events', Radio, 'Live Feed'],
@@ -445,10 +371,9 @@ function Dashboard() {
         </aside>
         <section className="dashMain">
           <h2>{tabs.find(([id]) => id === active)?.[2]}</h2>
-          <p>{active === 'send' ? 'Transfer XLM on Stellar Testnet' : active === 'split' ? 'Divide expenses between friends' : active === 'requests' ? 'Pending requests from bill splits' : active === 'contract' ? 'Interact with the Payment Request Contract' : 'Live Contract Events'}</p>
+          <p>{active === 'send' ? 'Transfer XLM on Stellar Testnet' : active === 'groups' ? 'Divide group expenses and automatically settle debts using Soroban' : active === 'requests' ? 'Pending requests from groups' : active === 'contract' ? 'Interact with the Payment Request Contract' : 'Live Contract Events'}</p>
           <div className="panel" style={{ paddingBottom: '80px' }}>
             {active === 'send' && <SendForm />}
-            {active === 'split' && <BillSplitter />}
             {active === 'groups' && <GroupPage />}
             {active === 'requests' && <RequestInbox />}
             {active === 'contract' && <ContractRequests />}

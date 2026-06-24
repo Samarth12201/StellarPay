@@ -4,8 +4,7 @@ import type { PaymentRequest } from '../../types';
 
 const NAV_ITEMS = [
   { id: 'send',     label: 'Send',     icon: Send },
-  { id: 'split',    label: 'Split',    icon: Calculator },
-  { id: 'groups',   label: 'Groups',   icon: Users },
+  { id: 'groups',   label: 'Split',    icon: Users },
   { id: 'requests', label: 'Requests', icon: Inbox },
 ];
 
