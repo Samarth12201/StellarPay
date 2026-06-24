@@ -6,7 +6,7 @@ import {
   nativeToScVal,
   scValToNative,
   Address,
-  SorobanRpc,
+  rpc,
 } from '@stellar/stellar-sdk';
 import { useWalletStore, useTxStore } from '../store';
 import { useWallet } from './useWallet';
@@ -14,7 +14,7 @@ import { CONTRACT_ADDRESS, NETWORK } from '../constants/contract';
 import { ContractError } from '../errors/ContractError';
 import { NetworkError } from '../errors/NetworkError';
 
-const rpc = new SorobanRpc.Server(NETWORK.rpcUrl);
+const rpcServer = new rpc.Server(NETWORK.rpcUrl);
 
 export function useContract() {
   const { address } = useWalletStore();
@@ -26,7 +26,7 @@ export function useContract() {
   const getCount = async (): Promise<number> => {
     try {
       const contract = new Contract(CONTRACT_ADDRESS);
-      const source = await rpc.getAccount(address!);
+      const source = await rpcServer.getAccount(address!);
 
       const tx = new TransactionBuilder(source, {
         fee: BASE_FEE,
@@ -36,12 +36,12 @@ export function useContract() {
         .setTimeout(30)
         .build();
 
-      const sim = await rpc.simulateTransaction(tx);
-      if (SorobanRpc.Api.isSimulationError(sim)) {
+      const sim = await rpcServer.simulateTransaction(tx);
+      if (rpc.Api.isSimulationError(sim)) {
         throw ContractError.fromStellarError(sim.error);
       }
 
-      const result = (sim as SorobanRpc.Api.SimulateTransactionSuccessResponse).result;
+      const result = (sim as rpc.Api.SimulateTransactionSuccessResponse).result;
       return result ? Number(scValToNative(result.retval)) : 0;
     } catch (err) {
       if (err instanceof ContractError) throw err;
@@ -52,7 +52,7 @@ export function useContract() {
   const getRequest = async (id: number) => {
     try {
       const contract = new Contract(CONTRACT_ADDRESS);
-      const source = await rpc.getAccount(address!);
+      const source = await rpcServer.getAccount(address!);
 
       const tx = new TransactionBuilder(source, {
         fee: BASE_FEE,
@@ -64,12 +64,12 @@ export function useContract() {
         .setTimeout(30)
         .build();
 
-      const sim = await rpc.simulateTransaction(tx);
-      if (SorobanRpc.Api.isSimulationError(sim)) {
+      const sim = await rpcServer.simulateTransaction(tx);
+      if (rpc.Api.isSimulationError(sim)) {
         throw ContractError.fromStellarError(sim.error);
       }
 
-      const result = (sim as SorobanRpc.Api.SimulateTransactionSuccessResponse).result;
+      const result = (sim as rpc.Api.SimulateTransactionSuccessResponse).result;
       return result ? scValToNative(result.retval) : null;
     } catch (err) {
       if (err instanceof ContractError) throw err;
@@ -91,7 +91,7 @@ export function useContract() {
 
     try {
       const contract = new Contract(CONTRACT_ADDRESS);
-      const source = await rpc.getAccount(address);
+      const source = await rpcServer.getAccount(address);
 
       const amountStroops = Math.round(parseFloat(amountXlm) * 10_000_000);
 
@@ -112,19 +112,19 @@ export function useContract() {
         .build();
 
       // Simulate first
-      const sim = await rpc.simulateTransaction(tx);
-      if (SorobanRpc.Api.isSimulationError(sim)) {
+      const sim = await rpcServer.simulateTransaction(tx);
+      if (rpc.Api.isSimulationError(sim)) {
         updateTxStatus(txId, 'failed');
         throw ContractError.fromStellarError(sim.error);
       }
 
-      const preparedTx = SorobanRpc.assembleTransaction(tx, sim).build();
+      const preparedTx = rpc.assembleTransaction(tx, sim).build();
       updateTxStatus(txId, 'signing');
 
       const signedXdr = await signXdr(preparedTx.toEnvelope().toXDR('base64'));
       updateTxStatus(txId, 'confirming');
 
-      const response = await rpc.sendTransaction(
+      const response = await rpcServer.sendTransaction(
         TransactionBuilder.fromXDR(signedXdr, Networks.TESTNET)
       );
 
@@ -134,15 +134,15 @@ export function useContract() {
       }
 
       // Poll for confirmation
-      let getResponse = await rpc.getTransaction(response.hash);
+      let getResponse = await rpcServer.getTransaction(response.hash);
       let attempts = 0;
-      while (getResponse.status === SorobanRpc.Api.GetTransactionStatus.NOT_FOUND && attempts < 20) {
+      while (getResponse.status === rpc.Api.GetTransactionStatus.NOT_FOUND && attempts < 20) {
         await new Promise((r) => setTimeout(r, 1500));
-        getResponse = await rpc.getTransaction(response.hash);
+        getResponse = await rpcServer.getTransaction(response.hash);
         attempts++;
       }
 
-      if (getResponse.status === SorobanRpc.Api.GetTransactionStatus.SUCCESS) {
+      if (getResponse.status === rpc.Api.GetTransactionStatus.SUCCESS) {
         updateTxStatus(txId, 'success', response.hash);
         return response.hash;
       } else {
@@ -163,7 +163,7 @@ export function useContract() {
 
     try {
       const contract = new Contract(CONTRACT_ADDRESS);
-      const source = await rpc.getAccount(address);
+      const source = await rpcServer.getAccount(address);
 
       const tx = new TransactionBuilder(source, {
         fee: BASE_FEE,
@@ -179,31 +179,31 @@ export function useContract() {
         .setTimeout(30)
         .build();
 
-      const sim = await rpc.simulateTransaction(tx);
-      if (SorobanRpc.Api.isSimulationError(sim)) {
+      const sim = await rpcServer.simulateTransaction(tx);
+      if (rpc.Api.isSimulationError(sim)) {
         updateTxStatus(txId, 'failed');
         throw ContractError.fromStellarError(sim.error);
       }
 
-      const preparedTx = SorobanRpc.assembleTransaction(tx, sim).build();
+      const preparedTx = rpc.assembleTransaction(tx, sim).build();
       updateTxStatus(txId, 'signing');
 
       const signedXdr = await signXdr(preparedTx.toEnvelope().toXDR('base64'));
       updateTxStatus(txId, 'confirming');
 
-      const response = await rpc.sendTransaction(
+      const response = await rpcServer.sendTransaction(
         TransactionBuilder.fromXDR(signedXdr, Networks.TESTNET)
       );
 
-      let getResponse = await rpc.getTransaction(response.hash);
+      let getResponse = await rpcServer.getTransaction(response.hash);
       let attempts = 0;
-      while (getResponse.status === SorobanRpc.Api.GetTransactionStatus.NOT_FOUND && attempts < 20) {
+      while (getResponse.status === rpc.Api.GetTransactionStatus.NOT_FOUND && attempts < 20) {
         await new Promise((r) => setTimeout(r, 1500));
-        getResponse = await rpc.getTransaction(response.hash);
+        getResponse = await rpcServer.getTransaction(response.hash);
         attempts++;
       }
 
-      if (getResponse.status === SorobanRpc.Api.GetTransactionStatus.SUCCESS) {
+      if (getResponse.status === rpc.Api.GetTransactionStatus.SUCCESS) {
         updateTxStatus(txId, 'success', response.hash);
         return response.hash;
       } else {

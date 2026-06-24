@@ -1,5 +1,5 @@
-export const CONTRACT_ADDRESS = 'CXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX';
-// Replace with your actual deployed contract address
+export const CONTRACT_ADDRESS = 'CBJJMXJVIXE6ZAK7WBOFX46ATAEJEXRJUNETL5RXR7J6LF35GMN3G742';
+// Deployed testnet contract
 
 export const NETWORK = {
   name: 'TESTNET' as const,

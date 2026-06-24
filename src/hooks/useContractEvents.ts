@@ -1,9 +1,9 @@
 import { useEffect } from 'react';
-import { SorobanRpc } from '@stellar/stellar-sdk';
+import { rpc } from '@stellar/stellar-sdk';
 import { useEventStore, ContractEvent } from '../store';
 import { CONTRACT_ADDRESS, NETWORK } from '../constants/contract';
 
-const rpc = new SorobanRpc.Server(NETWORK.rpcUrl);
+const rpcServer = new rpc.Server(NETWORK.rpcUrl);
 
 export function useContractEvents() {
   const { addEvents, lastLedger, setLastLedger } = useEventStore();
@@ -11,14 +11,14 @@ export function useContractEvents() {
   useEffect(() => {
     const poll = async () => {
       try {
-        const latest = await rpc.getLatestLedger();
+        const latest = await rpcServer.getLatestLedger();
         const startLedger = lastLedger === 0
           ? Math.max(1, latest.sequence - 200)
           : lastLedger + 1;
 
         if (startLedger > latest.sequence) return;
 
-        const response = await rpc.getEvents({
+        const response = await rpcServer.getEvents({
           startLedger,
           filters: [
             {
