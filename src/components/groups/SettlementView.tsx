@@ -12,9 +12,11 @@ interface Props {
   onPay: (settlement: Settlement) => Promise<string>;
   onRequest: (settlement: Settlement) => void;
   paying: string | null;
+  groupId?: string;
+  groupName?: string;
 }
 
-export function SettlementView({ settlements, myAddress, onPay, onRequest, paying }: Props) {
+export function SettlementView({ settlements, myAddress, onPay, onRequest, paying, groupId, groupName }: Props) {
   const [txHashes, setTxHashes] = useState<Record<string, string>>({});
 
   if (settlements.length === 0) {
@@ -49,6 +51,8 @@ export function SettlementView({ settlements, myAddress, onPay, onRequest, payin
       url.searchParams.set('address', s.toAddress);
       url.searchParams.set('amount', s.amount.toFixed(7));
       url.searchParams.set('memo', `Group settlement: ${s.fromName}`.slice(0, 28));
+      if (groupId) url.searchParams.set('groupId', groupId);
+      if (groupName) url.searchParams.set('groupName', groupName);
 
       const shareData = {
         title: 'Payment Request - StellarPay',

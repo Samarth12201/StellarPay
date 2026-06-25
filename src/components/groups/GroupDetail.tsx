@@ -209,6 +209,8 @@ export function GroupDetail() {
             onPay={paySettlement}
             onRequest={sendPaymentRequest}
             paying={paying}
+            groupId={group.id}
+            groupName={group.name}
           />
         </div>
       )}

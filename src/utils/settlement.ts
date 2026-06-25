@@ -1,4 +1,4 @@
-import { Settlement, Expense, GroupMember } from '../types';
+import { Settlement, Expense, GroupMember, PaymentRequest } from '../types';
 
 /**
  * Calculates the minimum set of transactions to settle all group debts.
@@ -9,7 +9,8 @@ import { Settlement, Expense, GroupMember } from '../types';
  */
 export function calculateSettlements(
   expenses: Expense[],
-  members: GroupMember[]
+  members: GroupMember[],
+  paidRequests: PaymentRequest[] = []
 ): Settlement[] {
   if (expenses.length === 0) return [];
 
@@ -29,6 +30,21 @@ export function calculateSettlements(
     // Each person in splitAmong owes their share
     for (const memberId of expense.splitAmong) {
       net[memberId] = (net[memberId] ?? 0) - share;
+    }
+  }
+
+  // Account for payments already made
+  for (const req of paidRequests) {
+    if (req.status !== 'paid') continue;
+    // toAddress is the debtor (payer), fromAddress is the creditor (receiver)
+    const debtorMember = members.find(m => m.address.toLowerCase() === req.toAddress.toLowerCase());
+    const creditorMember = members.find(m => m.address.toLowerCase() === req.fromAddress.toLowerCase());
+    
+    if (debtorMember && creditorMember) {
+      // debtorMember paid money -> decreases their debt (increases net balance)
+      net[debtorMember.id] = (net[debtorMember.id] ?? 0) + Number(req.amount);
+      // creditorMember received money -> decreases their credit (decreases net balance)
+      net[creditorMember.id] = (net[creditorMember.id] ?? 0) - Number(req.amount);
     }
   }
 
@@ -95,28 +111,63 @@ export function totalSpent(expenses: Expense[]): number {
 /** Net balance for a single member: positive = owed money, negative = owes money */
 export function memberNetBalance(
   memberId: string,
-  expenses: Expense[]
+  expenses: Expense[],
+  members: GroupMember[] = [],
+  paidRequests: PaymentRequest[] = []
 ): number {
   let net = 0;
   for (const e of expenses) {
     if (e.paidBy === memberId) net += e.totalAmount;
     if (e.splitAmong.includes(memberId)) net -= e.totalAmount / e.splitAmong.length;
   }
+  
+  const targetMember = members.find(m => m.id === memberId);
+  if (targetMember) {
+    for (const req of paidRequests) {
+      if (req.status !== 'paid') continue;
+      if (req.toAddress.toLowerCase() === targetMember.address.toLowerCase()) {
+        // targetMember is the debtor/payer -> they paid, so their net balance increases (offsets debt)
+        net += Number(req.amount);
+      }
+      if (req.fromAddress.toLowerCase() === targetMember.address.toLowerCase()) {
+        // targetMember is the creditor/receiver -> they received, so their net balance decreases (offsets credit)
+        net -= Number(req.amount);
+      }
+    }
+  }
+
   return Math.round(net * 100) / 100;
 }
 
 /** Per-member paid/owed/net breakdown */
 export function memberBalances(
   members: GroupMember[],
-  expenses: Expense[]
+  expenses: Expense[],
+  paidRequests: PaymentRequest[] = []
 ): Record<string, { paid: number; owed: number; net: number }> {
   const result: Record<string, { paid: number; owed: number; net: number }> = {};
   members.forEach((m) => (result[m.id] = { paid: 0, owed: 0, net: 0 }));
+  
   for (const e of expenses) {
     if (result[e.paidBy]) result[e.paidBy].paid += e.totalAmount;
     const share = e.totalAmount / e.splitAmong.length;
     e.splitAmong.forEach((id) => { if (result[id]) result[id].owed += share; });
   }
+
+  for (const req of paidRequests) {
+    if (req.status !== 'paid') continue;
+    // toAddress is the debtor (payer), fromAddress is the creditor (receiver)
+    const debtorMember = members.find(m => m.address.toLowerCase() === req.toAddress.toLowerCase());
+    const creditorMember = members.find(m => m.address.toLowerCase() === req.fromAddress.toLowerCase());
+    
+    if (debtorMember && result[debtorMember.id]) {
+       result[debtorMember.id].paid += Number(req.amount);
+    }
+    if (creditorMember && result[creditorMember.id]) {
+       result[creditorMember.id].owed += Number(req.amount);
+    }
+  }
+
   Object.keys(result).forEach((id) => {
     result[id].paid = Math.round(result[id].paid * 100) / 100;
     result[id].owed = Math.round(result[id].owed * 100) / 100;

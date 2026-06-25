@@ -1,10 +1,16 @@
 import { useGroupStore } from '../../store/groupStore';
+import { useWalletStore } from '../../store/walletStore';
 import { Users, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export function GroupList() {
   const { groups } = useGroupStore();
+  const { address } = useWalletStore();
   const navigate = useNavigate();
+
+  const myGroups = groups.filter((group) =>
+    group.members.some((m) => m.address.toLowerCase() === address?.toLowerCase())
+  );
 
   return (
     <div className="space-y-4">
@@ -18,7 +24,7 @@ export function GroupList() {
         </button>
       </div>
 
-      {groups.length === 0 ? (
+      {myGroups.length === 0 ? (
         <div className="border border-dashed border-gray-300 rounded-2xl p-8 text-center flex flex-col items-center">
           <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-3">
             <Users className="w-6 h-6 text-gray-400" />
@@ -36,7 +42,7 @@ export function GroupList() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {groups.map((group) => (
+          {myGroups.map((group) => (
             <div
               key={group.id}
               onClick={() => navigate(group.id)}

@@ -4,6 +4,7 @@ import { AlbedoModule } from '@creit.tech/stellar-wallets-kit/modules/albedo';
 import { xBullModule } from '@creit.tech/stellar-wallets-kit/modules/xbull';
 import { LobstrModule } from '@creit.tech/stellar-wallets-kit/modules/lobstr';
 import { HanaModule } from '@creit.tech/stellar-wallets-kit/modules/hana';
+import { requestAccess, getAddress, signTransaction as freighterSign } from '@stellar/freighter-api';
 import { useWalletStore } from '../store';
 import { WalletError } from '../errors/WalletError';
 
@@ -32,8 +33,45 @@ function initKit() {
   }
 }
 
+/**
+ * Try connecting directly to Freighter extension via its API.
+ * This bypasses SWK's unreliable isAvailable() detection.
+ */
+async function connectFreighterDirect(): Promise<string | null> {
+  try {
+    // requestAccess asks the user for permission and returns the public key
+    const accessResult = await requestAccess();
+    if (accessResult.error) {
+      console.warn('Freighter requestAccess error:', accessResult.error);
+      return null;
+    }
+
+    const addrResult = await getAddress();
+    if (addrResult.error || !addrResult.address) {
+      console.warn('Freighter getAddress error:', addrResult.error);
+      return null;
+    }
+
+    return addrResult.address;
+  } catch (e) {
+    console.warn('Freighter direct connect failed:', e);
+    return null;
+  }
+}
+
 export function useWallet() {
   const { setAddress, setConnected, reset, walletType } = useWalletStore();
+
+  const connectFreighter = async (): Promise<string> => {
+    const address = await connectFreighterDirect();
+    if (!address) {
+      throw WalletError.fromCode('NOT_CONNECTED');
+    }
+    setAddress(address);
+    setConnected(true);
+    useWalletStore.getState().setWalletType('freighter');
+    return address;
+  };
 
   const openModal = async (): Promise<string> => {
     initKit();
@@ -43,14 +81,9 @@ export function useWallet() {
         throw WalletError.fromCode('NOT_CONNECTED');
       }
 
-      // Check network if getNetwork is supported
-      try {
-        const networkDetails = await StellarWalletsKit.getNetwork();
-        if (networkDetails && networkDetails.networkPassphrase !== 'Test SDF Network ; September 2015') {
-          throw WalletError.fromCode('WRONG_NETWORK');
-        }
-      } catch (e) {
-        // Some modules might not support getNetwork
+      const activeModule = StellarWalletsKit.selectedModule;
+      if (activeModule) {
+        useWalletStore.getState().setWalletType(activeModule.productId);
       }
 
       setAddress(address);
@@ -61,8 +94,8 @@ export function useWallet() {
       if (err instanceof WalletError) {
         throw err;
       }
-      const msg = String(err);
-      if (msg.includes('User declined') || msg.includes('rejected') || msg.includes('closed')) {
+      const msg = err?.message ? String(err.message) : String(err);
+      if (msg.includes('User declined') || msg.includes('rejected') || msg.includes('closed') || msg.includes('cancel')) {
         throw WalletError.fromCode('USER_REJECTED');
       } else if (msg.includes('locked')) {
         throw WalletError.fromCode('LOCKED');
@@ -75,7 +108,31 @@ export function useWallet() {
   const signXdr = async (xdr: string): Promise<string> => {
     initKit();
     
-    // Ensure the wallet is correctly set if page reloaded
+    // If connected via direct Freighter, use Freighter API directly for signing
+    if (walletType === 'freighter') {
+      try {
+        const result = await freighterSign(xdr, {
+          networkPassphrase: 'Test SDF Network ; September 2015',
+        });
+        if (result.error) {
+          const errMsg = result.error.message || 'Signing failed';
+          if (errMsg.includes('rejected') || errMsg.includes('declined') || errMsg.includes('cancel')) {
+            throw WalletError.fromCode('USER_REJECTED');
+          }
+          throw new WalletError('NOT_CONNECTED', 'Signing failed: ' + errMsg);
+        }
+        return result.signedTxXdr;
+      } catch (err: any) {
+        if (err instanceof WalletError) throw err;
+        const msg = err?.message ? String(err.message) : String(err);
+        if (msg.includes('rejected') || msg.includes('declined') || msg.includes('cancel')) {
+          throw WalletError.fromCode('USER_REJECTED');
+        }
+        throw new WalletError('NOT_CONNECTED', 'Signing failed: ' + msg);
+      }
+    }
+
+    // For other wallets, use SWK
     if (walletType) {
       try {
         StellarWalletsKit.setWallet(walletType);
@@ -90,8 +147,8 @@ export function useWallet() {
       });
       return signedTxXdr;
     } catch (err: any) {
-      const msg = String(err);
-      if (msg.includes('rejected') || msg.includes('declined')) {
+      const msg = err?.message ? String(err.message) : String(err);
+      if (msg.includes('rejected') || msg.includes('declined') || msg.includes('cancel')) {
         throw WalletError.fromCode('USER_REJECTED');
       }
       throw new WalletError('NOT_CONNECTED', 'Signing failed: ' + msg);
@@ -104,5 +161,5 @@ export function useWallet() {
     reset();
   };
 
-  return { openModal, signXdr, disconnect };
+  return { openModal, connectFreighter, signXdr, disconnect };
 }

@@ -3,6 +3,11 @@ import { persist } from 'zustand/middleware';
 import { PaymentRequest } from '../types';
 import { nanoid } from 'nanoid';
 import { supabase } from '../lib/supabase';
+import { useWalletStore } from './walletStore';
+import toast from 'react-hot-toast';
+
+let isSyncingRequests = false;
+const appLoadTime = Date.now();
 
 interface RequestStore {
   requests: PaymentRequest[];
@@ -26,28 +31,90 @@ export const useRequestStore = create<RequestStore>()(
       requests: [],
 
       syncRequests: async () => {
-        if (!supabase) return;
-        const { data } = await supabase.from('payment_requests').select('*');
-        if (data) {
-          const mapped = data.map((d) => ({
-            id: d.id,
-            groupId: d.groupId,
-            groupName: d.groupName,
-            fromAddress: d.fromAddress,
-            toAddress: d.toAddress,
-            fromName: d.fromName,
-            amount: d.amount,
-            memo: d.memo,
-            status: d.status as any,
-            txHash: d.txHash,
-            createdAt: new Date(d.created_at)
-          }));
-          // Merge avoiding duplicates
-          set((s) => {
-            const existingIds = new Set(s.requests.map((r) => r.id));
-            const newReqs = mapped.filter((m) => !existingIds.has(m.id));
-            return { requests: [...newReqs, ...s.requests] };
-          });
+        if (!supabase || isSyncingRequests) return;
+        isSyncingRequests = true;
+        try {
+          const { data } = await supabase.from('payment_requests').select('*');
+          if (data) {
+            const mapped: PaymentRequest[] = data.map((d) => ({
+              id: d.id,
+              groupId: d.groupid ?? undefined,
+              groupName: d.groupname ?? undefined,
+              fromAddress: d.fromaddress,
+              toAddress: d.toaddress,
+              fromName: d.fromname,
+              amount: d.amount,
+              memo: d.memo,
+              status: d.status as any,
+              txHash: d.txhash ?? undefined,
+              createdAt: new Date(d.created_at)
+            }));
+
+            // Detect new pending requests for the current user
+            const myAddress = useWalletStore.getState().address;
+            if (myAddress) {
+              const currentRequests = get().requests;
+              const myLowerAddress = myAddress.toLowerCase();
+              const newRequests = mapped.filter(r => 
+                r.toAddress.toLowerCase() === myLowerAddress && 
+                r.status === 'pending' && 
+                !currentRequests.some(prev => prev.id === r.id) &&
+                r.createdAt.getTime() > appLoadTime
+              );
+
+              for (const r of newRequests) {
+                toast.success(
+                  `New payment request: ${r.amount} XLM from ${r.fromName}\n"${r.memo}"`,
+                  {
+                    duration: 6000,
+                    icon: '📬',
+                    style: {
+                      background: '#1e1b4b', // Indigo dark
+                      color: '#e0e7ff', // Indigo light text
+                      border: '1px solid #4338ca',
+                    }
+                  }
+                );
+              }
+            }
+
+            const dbIds = new Set(mapped.map((m) => m.id));
+            const localOnly = get().requests.filter((r) => !dbIds.has(r.id));
+
+            // Auto-upload local-only requests
+            for (const req of localOnly) {
+              try {
+                let shouldUpload = true;
+                if (req.groupId) {
+                  const { data: grp } = await supabase.from('groups').select('id').eq('id', req.groupId).maybeSingle();
+                  if (!grp) {
+                    shouldUpload = false;
+                  }
+                }
+                if (shouldUpload) {
+                  await supabase.from('payment_requests').upsert({
+                    id: req.id,
+                    groupid: req.groupId,
+                    groupname: req.groupName,
+                    fromaddress: req.fromAddress,
+                    toaddress: req.toAddress,
+                    fromname: req.fromName,
+                    amount: req.amount,
+                    memo: req.memo,
+                    status: req.status,
+                    txhash: req.txHash
+                  });
+                  mapped.push(req);
+                }
+              } catch (err) {
+                console.error('Failed to auto-upload local request:', err);
+              }
+            }
+
+            set({ requests: mapped });
+          }
+        } finally {
+          isSyncingRequests = false;
         }
       },
 
@@ -59,15 +126,15 @@ export const useRequestStore = create<RequestStore>()(
         if (supabase) {
           await supabase.from('payment_requests').insert({
             id: newReq.id,
-            groupId: newReq.groupId,
-            groupName: newReq.groupName,
-            fromAddress: newReq.fromAddress,
-            toAddress: newReq.toAddress,
-            fromName: newReq.fromName,
+            groupid: newReq.groupId,
+            groupname: newReq.groupName,
+            fromaddress: newReq.fromAddress,
+            toaddress: newReq.toAddress,
+            fromname: newReq.fromName,
             amount: newReq.amount,
             memo: newReq.memo,
             status: newReq.status,
-            txHash: newReq.txHash
+            txhash: newReq.txHash
           });
         }
         return id;
@@ -85,15 +152,15 @@ export const useRequestStore = create<RequestStore>()(
           await supabase.from('payment_requests').insert(
             newReqs.map(r => ({
               id: r.id,
-              groupId: r.groupId,
-              groupName: r.groupName,
-              fromAddress: r.fromAddress,
-              toAddress: r.toAddress,
-              fromName: r.fromName,
+              groupid: r.groupId,
+              groupname: r.groupName,
+              fromaddress: r.fromAddress,
+              toaddress: r.toAddress,
+              fromname: r.fromName,
               amount: r.amount,
               memo: r.memo,
               status: r.status,
-              txHash: r.txHash
+              txhash: r.txHash
             }))
           );
         }
@@ -106,7 +173,7 @@ export const useRequestStore = create<RequestStore>()(
           ),
         }));
         if (supabase) {
-          await supabase.from('payment_requests').update({ status: 'paid', txHash }).eq('id', id);
+          await supabase.from('payment_requests').update({ status: 'paid', txhash: txHash }).eq('id', id);
         }
       },
 
@@ -140,6 +207,6 @@ export const useRequestStore = create<RequestStore>()(
             r.status === 'pending'
         ).length,
     }),
-    { name: 'stellarpay-requests-v3' }
+    { name: 'stellarpay-requests-v4' }
   )
 );

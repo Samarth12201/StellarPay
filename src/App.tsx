@@ -28,6 +28,7 @@ import { useGroupStore } from './store/groupStore';
 
 import { useWallet } from './hooks/useWallet';
 import { useSendPayment, getFreighterError } from './hooks/useSendPayment';
+import { useContract } from './hooks/useContract';
 import { WalletConnect } from './components/wallet/WalletConnect';
 import { TxStatusBar } from './components/tx/TxStatusBar';
 import { ContractRequests } from './components/contract/ContractRequests';
@@ -176,17 +177,74 @@ function Landing() {
   );
 }
 
-function SendForm({ preset }: { preset?: { to?: string; amount?: string; memo?: string } }) {
+function SendForm({
+  preset,
+  onSuccess
+}: {
+  preset?: { to?: string; amount?: string; memo?: string };
+  onSuccess?: (txHash: string) => void;
+}) {
   const [to, setTo] = useState(preset?.to ?? '');
   const [amount, setAmount] = useState(preset?.amount ?? '');
   const [memo, setMemo] = useState(preset?.memo ?? '');
+  
+  const [requestIdInput, setRequestIdInput] = useState('');
+  const [requestId, setRequestId] = useState<number | undefined>(undefined);
+  const [loadedRequest, setLoadedRequest] = useState<any>(null);
+  const [fetchingRequest, setFetchingRequest] = useState(false);
+
   const { sendPayment, loading, result, error, reset } = useSendPayment();
+  const { getRequest } = useContract();
+
+  async function loadRequest() {
+    if (!requestIdInput) return;
+    setFetchingRequest(true);
+    try {
+      const id = parseInt(requestIdInput, 10);
+      const req = await getRequest(id);
+      if (req) {
+        // Convert stroops back to XLM string
+        const amountXlm = (Number(req.amount) / 10_000_000).toString();
+        
+        setTo(req.from);
+        setAmount(amountXlm);
+        setMemo(req.memo ? req.memo.toString() : '');
+        setRequestId(id);
+        setLoadedRequest(req);
+        toast.success(`Request #${id} loaded from contract!`);
+      } else {
+        toast.error('Request not found on-chain.');
+        setLoadedRequest(null);
+        setRequestId(undefined);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to fetch request from contract.');
+      setLoadedRequest(null);
+      setRequestId(undefined);
+    } finally {
+      setFetchingRequest(false);
+    }
+  }
+
+  const handleReset = () => {
+    reset();
+    setTo('');
+    setAmount('');
+    setMemo('');
+    setRequestIdInput('');
+    setRequestId(undefined);
+    setLoadedRequest(null);
+  };
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     try {
-      await sendPayment(to, amount, memo || undefined);
-      toast.success('Payment sent!');
+      const tx = await sendPayment(to, amount, memo || undefined, requestId);
+      toast.success(requestId !== undefined ? 'On-chain request paid & settled!' : 'Payment sent!');
+      if (onSuccess && tx) {
+        onSuccess(tx.hash);
+      }
     } catch (error) {
       toast.error(getFreighterError(error, 'Payment failed.'));
     }
@@ -196,12 +254,12 @@ function SendForm({ preset }: { preset?: { to?: string; amount?: string; memo?: 
     return (
       <div className="successBox">
         <CheckCircle2 size={42} />
-        <h3>Payment Sent!</h3>
+        <h3>{requestId !== undefined ? 'On-Chain Request Settled!' : 'Payment Sent!'}</h3>
         <p>{result.amount} XLM to {truncateAddress(result.to)}</p>
         <code>{result.hash}</code>
         <div className="row">
           <a className="btn ghost" href={`https://stellar.expert/explorer/testnet/tx/${result.hash}`} target="_blank" rel="noreferrer"><ExternalLink size={16} /> Explorer</a>
-          <button className="btn primary" onClick={reset}>Send Again</button>
+          <button className="btn primary" onClick={handleReset}>Send Again</button>
         </div>
       </div>
     );
@@ -209,13 +267,42 @@ function SendForm({ preset }: { preset?: { to?: string; amount?: string; memo?: 
 
   return (
     <form className="form" onSubmit={submit}>
+      <div className="border border-violet-100 bg-violet-50/50 rounded-xl p-4 mb-2">
+        <label className="block text-xs font-semibold text-violet-700 mb-1">
+          Pay On-Chain Request ID (Optional)
+        </label>
+        <div className="flex gap-2">
+          <input
+            type="number"
+            value={requestIdInput}
+            onChange={(e) => setRequestIdInput(e.target.value)}
+            placeholder="e.g. 5"
+            className="flex-1 bg-white border border-violet-200 rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:border-violet-500"
+            disabled={loading || fetchingRequest}
+          />
+          <button
+            type="button"
+            onClick={loadRequest}
+            disabled={loading || fetchingRequest || !requestIdInput}
+            className="btn primary py-1.5 px-4 text-xs shrink-0"
+          >
+            {fetchingRequest ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Load'}
+          </button>
+        </div>
+        {loadedRequest && (
+          <p className="text-xs text-green-600 font-medium mt-1.5 flex items-center gap-1">
+            ✓ Loaded Request #{loadedRequest.id} from smart contract
+          </p>
+        )}
+      </div>
+
       <label>Recipient Address<input value={to} onChange={(event) => setTo(event.target.value)} placeholder="G... (Stellar public key)" required /></label>
       <label>Amount (XLM)<input value={amount} onChange={(event) => setAmount(event.target.value)} type="number" min="0.0000001" step="0.0000001" placeholder="0.00" required /></label>
       <label>Memo <span>(optional, max 28 chars)</span><input value={memo} onChange={(event) => setMemo(event.target.value)} maxLength={28} placeholder="e.g. Dinner split" /></label>
       {error && <div className="error"><AlertCircle size={16} />{error}</div>}
-      <button className="btn primary full" disabled={loading || !to || !amount}>
+      <button className="btn primary full" disabled={loading || fetchingRequest || !to || !amount}>
         {loading ? <Loader2 className="spin" size={16} /> : <Send size={16} />}
-        {loading ? 'Sending...' : 'Send XLM →'}
+        {loading ? 'Processing...' : requestId !== undefined ? `Settle On-Chain Request #${requestId} →` : 'Send XLM →'}
       </button>
     </form>
   );
@@ -265,7 +352,7 @@ function Dashboard() {
         <section className="dashMain">
           <h2>{tabs.find(([id]) => id === active)?.[2]}</h2>
           <p>{active === 'send' ? 'Transfer XLM on Stellar Testnet' : active === 'groups' ? 'Divide group expenses and automatically settle debts using Soroban' : active === 'requests' ? 'Pending requests from groups' : active === 'contract' ? 'Interact with the Payment Request Contract' : 'Live Contract Events'}</p>
-          <div className="panel" style={{ paddingBottom: '80px' }}>
+          <div className="panel md:pb-6 pb-24">
             {active === 'send' && <SendForm />}
             {active === 'groups' && <GroupPage />}
             {active === 'requests' && <RequestInbox />}
@@ -287,6 +374,8 @@ function PayPage() {
   const to = params.get('address') ?? '';
   const amount = params.get('amount') ?? '';
   const memo = params.get('memo') ?? '';
+  const groupId = params.get('groupId') ?? undefined;
+  const groupName = params.get('groupName') ?? undefined;
 
   function saveForLater() {
     addRequests([{
@@ -295,6 +384,8 @@ function PayPage() {
       toAddress: to,
       amount: amount,
       memo: memo,
+      groupId,
+      groupName,
       status: 'pending',
     }]);
     toast.success('Saved to your Requests Inbox!');
@@ -311,7 +402,22 @@ function PayPage() {
         {to && <code>{truncateAddress(to, 8)}</code>}
         {isConnected ? (
           <>
-            <SendForm preset={{ to, amount, memo }} />
+            <SendForm
+              preset={{ to, amount, memo }}
+              onSuccess={(txHash) => {
+                addRequests([{
+                  fromAddress: to,        // Creditor (receiver)
+                  toAddress: address!,   // Debtor (payer, me)
+                  fromName: 'Receiver',
+                  amount: amount,
+                  memo: memo || 'Paid via link',
+                  groupId,
+                  groupName,
+                  status: 'paid',
+                  txHash,
+                }]);
+              }}
+            />
             <div style={{ marginTop: '1rem' }}>
               <button className="btn ghost full" onClick={saveForLater} style={{ justifyContent: 'center' }}>
                 <Inbox size={16} /> Save to Inbox

@@ -123,7 +123,7 @@ button, input { font: inherit; }
   .navLinks, .nav .ghost, .badgeNet { display: none; }
   .featuresGrid, .stepsRow, .dash { grid-template-columns: 1fr; }
   .sidebar { border-right: 0; border-bottom: 1px solid var(--g3); }
-  .sideNav { grid-template-columns: repeat(2, 1fr); }
+  .sideNav { display: none; }
   .dashMain { padding: 24px 18px; }
   .panel { max-width: none; }
 }

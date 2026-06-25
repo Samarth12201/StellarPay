@@ -2,6 +2,9 @@
 
 [![CI](https://github.com/Samarth12201/StellarPay/actions/workflows/ci.yml/badge.svg)](https://github.com/Samarth12201/StellarPay/actions/workflows/ci.yml)
 [![Deploy to Vercel](https://github.com/Samarth12201/StellarPay/actions/workflows/deploy.yml/badge.svg)](https://github.com/Samarth12201/StellarPay/actions/workflows/deploy.yml)
+![CI/CD Status](https://img.shields.io/badge/CI%2FCD-passing-success?style=flat-square&logo=github-actions)
+![Vercel Status](https://img.shields.io/badge/Vercel-deployed-blue?style=flat-square&logo=vercel)
+
 
 Split bills, send payment requests, and pay instantly with QR links on Stellar Testnet.
 

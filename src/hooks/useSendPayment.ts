@@ -1,9 +1,21 @@
 import { useState } from 'react';
-import { Asset, BASE_FEE, Memo, Networks, Operation, TransactionBuilder } from '@stellar/stellar-sdk';
+import { 
+  Asset, 
+  BASE_FEE, 
+  Memo, 
+  Networks, 
+  Operation, 
+  TransactionBuilder, 
+  Contract, 
+  Address, 
+  nativeToScVal, 
+  rpc 
+} from '@stellar/stellar-sdk';
 import { useWalletStore } from '../store/walletStore';
 import { useWallet } from './useWallet';
 import { server, isValidStellarAddress } from '../utils';
 import type { TransactionResult } from '../types';
+import { CONTRACT_ADDRESS, NETWORK } from '../constants/contract';
 
 export function getFreighterError(error: unknown, fallback: string) {
   if (error instanceof Error) return error.message;
@@ -18,30 +30,98 @@ export function useSendPayment() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const sendPayment = async (to: string, amount: string, memo?: string) => {
-    if (!address) throw new Error('Connect Freighter first.');
+  const sendPayment = async (to: string, amount: string, memo?: string, requestId?: number) => {
+    if (!address) throw new Error('Connect Wallet first.');
     if (!isValidStellarAddress(to)) throw new Error('Recipient must be a valid Stellar public key.');
 
     setLoading(true);
     setError(null);
     setResult(null);
 
+    const rpcServer = new rpc.Server(NETWORK.rpcUrl);
+
     try {
-      const source = await server.loadAccount(address);
-      let builder = new TransactionBuilder(source, {
-        fee: BASE_FEE,
-        networkPassphrase: Networks.TESTNET,
-      }).addOperation(Operation.payment({ destination: to, asset: Asset.native(), amount })).setTimeout(180);
+      if (requestId !== undefined && requestId !== null) {
+        // --- ATOMIC SMART CONTRACT + NATIVE PAYMENT TRANSACTION ---
+        const source = await rpcServer.getAccount(address);
+        const contract = new Contract(CONTRACT_ADDRESS);
 
-      if (memo) builder = builder.addMemo(Memo.text(memo.slice(0, 28)));
-      const transaction = builder.build();
-      const signedXdr = await signXdr(transaction.toXDR());
+        let builder = new TransactionBuilder(source, {
+          fee: BASE_FEE,
+          networkPassphrase: Networks.TESTNET,
+        })
+          .addOperation(
+            Operation.payment({
+              destination: to,
+              asset: Asset.native(),
+              amount: amount,
+            })
+          )
+          .addOperation(
+            contract.call(
+              'mark_paid',
+              new Address(address).toScVal(),
+              nativeToScVal(requestId, { type: 'u64' }),
+            )
+          )
+          .setTimeout(180);
 
-      const signedTx = TransactionBuilder.fromXDR(signedXdr, Networks.TESTNET);
-      const response = await server.submitTransaction(signedTx);
-      const tx = { hash: response.hash, to, amount, memo, status: 'success' as const, timestamp: new Date() };
-      setResult(tx);
-      return tx;
+        if (memo) {
+          builder = builder.addMemo(Memo.text(memo.slice(0, 28)));
+        }
+
+        const transaction = builder.build();
+
+        // Simulate transaction to get Soroban resources
+        const sim = await rpcServer.simulateTransaction(transaction);
+        if (rpc.Api.isSimulationError(sim)) {
+          throw new Error(`Simulation failed: ${sim.error}`);
+        }
+
+        const preparedTx = rpc.assembleTransaction(transaction, sim).build();
+        const signedXdr = await signXdr(preparedTx.toEnvelope().toXDR('base64'));
+
+        const signedTx = TransactionBuilder.fromXDR(signedXdr, Networks.TESTNET);
+        const response = await rpcServer.sendTransaction(signedTx);
+
+        if (response.status === 'ERROR') {
+          throw new Error('Transaction submission failed on-chain.');
+        }
+
+        // Poll for confirmation
+        let getResponse = await rpcServer.getTransaction(response.hash);
+        let attempts = 0;
+        while (getResponse.status === rpc.Api.GetTransactionStatus.NOT_FOUND && attempts < 20) {
+          await new Promise((r) => setTimeout(r, 1500));
+          getResponse = await rpcServer.getTransaction(response.hash);
+          attempts++;
+        }
+
+        if (getResponse.status !== rpc.Api.GetTransactionStatus.SUCCESS) {
+          throw new Error('On-chain transaction did not confirm in time.');
+        }
+
+        const tx = { hash: response.hash, to, amount, memo, status: 'success' as const, timestamp: new Date() };
+        setResult(tx);
+        return tx;
+      } else {
+        // --- STANDARD HORIZON DIRECT PAYMENT ---
+        const source = await server.loadAccount(address);
+        let builder = new TransactionBuilder(source, {
+          fee: BASE_FEE,
+          networkPassphrase: Networks.TESTNET,
+        }).addOperation(Operation.payment({ destination: to, asset: Asset.native(), amount })).setTimeout(180);
+
+        if (memo) builder = builder.addMemo(Memo.text(memo.slice(0, 28)));
+        const transaction = builder.build();
+        const signedXdr = await signXdr(transaction.toXDR());
+
+        const signedTx = TransactionBuilder.fromXDR(signedXdr, Networks.TESTNET);
+        const response = await server.submitTransaction(signedTx);
+        const tx = { hash: response.hash, to, amount, memo, status: 'success' as const, timestamp: new Date() };
+        setResult(tx);
+        return tx;
+      }
     } catch (error) {
       const message = getFreighterError(error, 'Transaction failed.');
       setError(message);

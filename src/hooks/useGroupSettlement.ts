@@ -21,17 +21,24 @@ export function useGroupSettlement(groupId: string) {
   const { address } = useWalletStore();
   const { signXdr } = useWallet();
   const { getGroup } = useGroupStore();
-  const { addRequest, markPaid } = useRequestStore();
+  const { addRequest, markPaid, markRejected } = useRequestStore();
 
   const [paying, setPaying] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const group = getGroup(groupId);
 
+  // ── Derived: paid requests for this group ────────────────
+  const allRequests = useRequestStore((s) => s.requests);
+  const groupRequests = useMemo(() => 
+    allRequests.filter(r => r.groupId === groupId && r.status === 'paid'),
+    [allRequests, groupId]
+  );
+
   // ── Derived: all settlements for this group ───────────────
   const settlements = useMemo(
-    () => (group ? calculateSettlements(group.expenses, group.members) : []),
-    [group]
+    () => (group ? calculateSettlements(group.expenses, group.members, groupRequests) : []),
+    [group, groupRequests]
   );
 
   // ── Derived: who the connected wallet is in this group ───
@@ -56,8 +63,8 @@ export function useGroupSettlement(groupId: string) {
   const total = useMemo(() => (group ? totalSpent(group.expenses) : 0), [group]);
 
   const balances = useMemo(
-    () => (group ? memberBalances(group.members, group.expenses) : {}),
-    [group]
+    () => (group ? memberBalances(group.members, group.expenses, groupRequests) : {}),
+    [group, groupRequests]
   );
 
   const myBalance = useMemo(
@@ -117,15 +124,13 @@ export function useGroupSettlement(groupId: string) {
       const response = await server.submitTransaction(signedTx);
       const txHash = response.hash;
 
-      // 5. Save a PAID receipt record in requestStore
-      //    toAddress = settlement.toAddress (the receiver / creditor)
-      //    fromAddress = address (the payer / debtor — that's me)
-      //    Note: We use fromAddress = MY address because I SENT this payment
-      //    The receiver will see this as a "received payment" via getOutgoing on their side
+      // 5. Save a PAID receipt record in requestStore using our uniform format:
+      //    fromAddress = settlement.toAddress (the receiver / creditor)
+      //    toAddress = address (the payer / debtor — that's me)
       addRequest({
-        fromAddress: address,              // I (the debtor) sent this
-        toAddress: settlement.toAddress,   // receiver (creditor)
-        fromName: myMember?.name ?? settlement.fromName,
+        fromAddress: settlement.toAddress,   // receiver (creditor)
+        toAddress: address,                 // I (the debtor) sent this
+        fromName: settlement.toName,
         amount: settlement.amount.toFixed(7),
         memo: memo,
         groupId: group?.id,
@@ -165,6 +170,25 @@ export function useGroupSettlement(groupId: string) {
       );
     }
 
+    // Smart check: Check for existing pending request
+    const existingPending = allRequests.find(
+      (r) =>
+        r.groupId === groupId &&
+        r.status === 'pending' &&
+        r.fromAddress.toLowerCase() === address.toLowerCase() &&
+        r.toAddress.toLowerCase() === settlement.fromAddress.toLowerCase()
+    );
+
+    if (existingPending) {
+      if (Math.abs(Number(existingPending.amount) - settlement.amount) > 0.0000001) {
+        // Reject outdated request
+        await markRejected(existingPending.id);
+      } else {
+        // Already exists with exact same amount, return the existing request ID
+        return existingPending.id;
+      }
+    }
+
     const requestId = await addRequest({
       fromAddress: address,
       toAddress: settlement.fromAddress,
@@ -185,8 +209,18 @@ export function useGroupSettlement(groupId: string) {
     let count = 0;
     for (const s of myReceivables) {
       try {
-        await sendPaymentRequest(s);
-        count++;
+        const existingPending = allRequests.find(
+          (r) =>
+            r.groupId === groupId &&
+            r.status === 'pending' &&
+            r.fromAddress.toLowerCase() === address.toLowerCase() &&
+            r.toAddress.toLowerCase() === s.fromAddress.toLowerCase()
+        );
+        // Only trigger request sending if no matching pending exists, or if it is outdated
+        if (!existingPending || Math.abs(Number(existingPending.amount) - s.amount) > 0.0000001) {
+          await sendPaymentRequest(s);
+          count++;
+        }
       } catch {
         // skip invalid entries silently
       }
