@@ -9,7 +9,7 @@ const AVATAR_COLORS = [
   '#2563EB', '#DB2777', '#0891B2', '#65A30D',
 ];
 
-let hasPoolsTable = true;
+let hasPoolsTable = false;
 
 interface GroupStore {
   groups: Group[];
@@ -147,6 +147,7 @@ export const useGroupStore = create<GroupStore>()(
               closed: false,
               asset,
             });
+            hasPoolsTable = true;
           } catch (err) {
             console.warn('Supabase pools upsert failed (possibly table does not exist):', err);
           }
