@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 interface Props {
   settlements: Settlement[];
   myAddress: string;
-  onPay: (s: Settlement) => Promise<string>;
+  onPay: (s: Settlement, assetType?: 'XLM' | 'USDC') => Promise<string>;
   onRequest: (s: Settlement) => Promise<any>;
   paying: string | null;
   groupId?: string;
@@ -82,29 +82,43 @@ export function SettlementView({ settlements, myAddress, onPay, onRequest, payin
             )}
 
             {!isDone && (
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-2">
                 {isMyPayment && (
-                  <button onClick={async () => {
-                    try {
-                      const hash = await onPay(s);
-                      setTxHashes((p) => ({ ...p, [key]: hash }));
-                    } catch (err: any) { toast.error(err.message); }
-                  }} disabled={isLoading}
-                    className="flex-1 flex items-center justify-center gap-1.5 bg-violet-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-violet-700 disabled:opacity-50">
-                    {isLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Sending...</> : <><Send className="w-4 h-4" /> Pay {s.amount} XLM</>}
-                  </button>
+                  <div className="flex gap-2 w-full">
+                    <button onClick={async () => {
+                      try {
+                        const hash = await onPay(s, 'XLM');
+                        setTxHashes((p) => ({ ...p, [key]: hash }));
+                      } catch (err: any) { toast.error(err.message); }
+                    }} disabled={isLoading}
+                      className="flex-1 flex items-center justify-center gap-1 bg-violet-600 hover:bg-violet-700 text-white py-2 rounded-xl text-xs font-semibold disabled:opacity-50">
+                      {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                      Pay XLM
+                    </button>
+                    
+                    <button onClick={async () => {
+                      try {
+                        const hash = await onPay(s, 'USDC');
+                        setTxHashes((p) => ({ ...p, [key]: hash }));
+                      } catch (err: any) { toast.error(err.message); }
+                    }} disabled={isLoading}
+                      className="flex-1 flex items-center justify-center gap-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-xl text-xs font-semibold disabled:opacity-50">
+                      {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                      Pay USDC (Contract)
+                    </button>
+                  </div>
                 )}
                 {isMyReceive && (
                   <button onClick={async () => {
                     try { await onRequest(s); toast.success(`Request sent to ${s.fromName}`); }
                     catch (err: any) { toast.error(err.message); }
                   }}
-                    className="flex-1 flex items-center justify-center gap-1.5 border border-violet-200 text-violet-600 py-2.5 rounded-xl text-sm font-semibold hover:bg-violet-50">
-                    <Bell className="w-4 h-4" /> Request from {s.fromName}
+                    className="w-full flex items-center justify-center gap-1.5 border border-violet-200 text-violet-600 py-2 rounded-xl text-xs font-semibold hover:bg-violet-50">
+                    <Bell className="w-3.5 h-3.5" /> Request from {s.fromName}
                   </button>
                 )}
                 {!isMyPayment && !isMyReceive && (
-                  <div className="flex items-center gap-1.5 text-xs text-gray-400 py-2">
+                  <div className="flex items-center gap-1.5 text-xs text-gray-400 py-1">
                     <Clock className="w-3.5 h-3.5" /> Waiting for {s.fromName} to pay
                   </div>
                 )}
