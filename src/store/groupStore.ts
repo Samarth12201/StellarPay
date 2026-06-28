@@ -9,6 +9,8 @@ const AVATAR_COLORS = [
   '#2563EB', '#DB2777', '#0891B2', '#65A30D',
 ];
 
+let hasPoolsTable = true;
+
 interface GroupStore {
   groups: Group[];
   createGroup: (name: string, members: { name: string; address: string }[]) => Promise<string>;
@@ -212,6 +214,22 @@ export const useGroupStore = create<GroupStore>()(
         const { data: groupRows } = await client.from('groups').select('*');
         if (!groupRows) return;
 
+        let allPoolRows: any[] = [];
+        if (hasPoolsTable) {
+          try {
+            const { data, error } = await client.from('pools').select('*');
+            if (error) {
+              if (error.code === 'PGRST116' || error.message?.includes('does not exist')) {
+                hasPoolsTable = false;
+              }
+            } else if (data) {
+              allPoolRows = data;
+            }
+          } catch (err) {
+            hasPoolsTable = false;
+          }
+        }
+
         const rebuilt: Group[] = await Promise.all(
           groupRows.map(async (g) => {
             const { data: memberRows } = await client
@@ -233,26 +251,19 @@ export const useGroupStore = create<GroupStore>()(
               asset: e.asset || 'XLM',
             }));
 
-            let pools: Pool[] = [];
-            try {
-              const { data: poolRows } = await client
-                .from('pools').select('*').eq('group_id', g.id);
-              if (poolRows) {
-                pools = poolRows.map((p) => ({
-                  id: p.id,
-                  groupId: p.group_id,
-                  creator: p.creator,
-                  title: p.title,
-                  targetAmount: p.target_amount,
-                  balance: p.balance,
-                  closed: p.closed,
-                  asset: p.asset || 'XLM',
-                  createdAt: new Date(p.created_at || Date.now()),
-                }));
-              }
-            } catch (err) {
-              console.warn('Supabase pools fetch failed (likely table not created):', err);
-            }
+            const pools: Pool[] = allPoolRows
+              .filter((p) => p.group_id === g.id)
+              .map((p) => ({
+                id: p.id,
+                groupId: p.group_id,
+                creator: p.creator,
+                title: p.title,
+                targetAmount: p.target_amount,
+                balance: p.balance,
+                closed: p.closed,
+                asset: p.asset || 'XLM',
+                createdAt: new Date(p.created_at || Date.now()),
+              }));
 
             return { id: g.id, name: g.name, members, expenses, pools, createdAt: new Date(g.created_at) };
           })
