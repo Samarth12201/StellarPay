@@ -38,7 +38,7 @@ export function GroupPoolsTab({ group }: GroupPoolsTabProps) {
     try {
       const parsedAmount = parseFloat(targetAmount);
       await createPoolOnChain(title.trim(), parsedAmount, asset);
-      toast.success('Crowdfunding pool successfully created on-chain!');
+      toast.success('Pool created successfully!');
       setShowCreate(false);
       setTitle('');
       setTargetAmount('');
@@ -85,66 +85,66 @@ export function GroupPoolsTab({ group }: GroupPoolsTabProps) {
   const pools = group.pools || [];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header Panel */}
-      <div className="flex justify-between items-center bg-slate-900/60 backdrop-blur-md p-4 rounded-xl border border-slate-800">
+      <div className="flex justify-between items-center bg-violet-50 p-4 rounded-2xl border border-violet-200">
         <div>
-          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-            <Gift className="text-indigo-400 w-5 h-5" /> Group Crowdfunding Pools
+          <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+            <Gift className="text-violet-500 w-5 h-5" /> Crowdfunding Pools
           </h3>
-          <p className="text-xs text-slate-400">Collect voluntary contributions for gifts, events, or shared costs.</p>
+          <p className="text-xs text-gray-500 mt-0.5">Collect voluntary contributions for gifts, events, or shared costs.</p>
         </div>
         <button
           onClick={() => setShowCreate(!showCreate)}
-          className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg shadow-lg hover:shadow-indigo-500/20 transition duration-200"
+          className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold rounded-xl shadow-sm transition"
         >
           <Plus className="w-4 h-4" /> Create Pool
         </button>
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 p-3 bg-red-950/40 border border-red-800/60 rounded-xl text-xs text-red-300">
-          <AlertCircle className="w-4 h-4 text-red-400" />
+        <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700">
+          <AlertCircle className="w-4 h-4 text-red-500" />
           <span>Error: {error}</span>
         </div>
       )}
 
       {/* USDC Trustline Helper Card */}
-      <div className="bg-slate-900/30 border border-slate-800 p-4 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <h4 className="text-xs font-semibold text-white flex items-center gap-1.5">
-            <Sparkles className="text-yellow-400 w-3.5 h-3.5" /> Stablecoin Enabled (Circle USDC)
+      <div className="bg-gray-50 border border-gray-200 p-4 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="space-y-0.5">
+          <h4 className="text-xs font-semibold text-gray-800 flex items-center gap-1.5">
+            <Sparkles className="text-amber-500 w-3.5 h-3.5" /> Stablecoin Enabled (Circle USDC)
           </h4>
-          <p className="text-xs text-slate-400">To create or contribute to USDC pools, make sure your wallet has the USDC trustline established.</p>
+          <p className="text-xs text-gray-500">To create or contribute to USDC pools, establish the USDC trustline first.</p>
         </div>
         <button
           onClick={handleAddTrustline}
-          className="px-3 py-1.5 self-start md:self-auto bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold rounded-lg border border-slate-700 transition"
+          className="px-3 py-1.5 self-start md:self-auto bg-white hover:bg-gray-100 text-gray-700 text-xs font-semibold rounded-lg border border-gray-300 transition"
         >
           Add USDC Trustline
         </button>
       </div>
 
-      {/* Create Pool Form Modal/Dropdown */}
+      {/* Create Pool Form */}
       {showCreate && (
-        <form onSubmit={handleCreate} className="bg-slate-900/80 p-5 rounded-xl border border-slate-700/80 shadow-2xl space-y-4 animate-in fade-in slide-in-from-top-4 duration-200">
-          <h4 className="text-sm font-semibold text-white">New Crowdfunding Campaign</h4>
+        <form onSubmit={handleCreate} className="bg-white p-5 rounded-2xl border border-violet-200 shadow-sm space-y-4">
+          <h4 className="text-sm font-bold text-gray-900">New Crowdfunding Campaign</h4>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Pool Title</label>
+              <label className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Pool Title</label>
               <input
                 type="text"
                 placeholder="e.g. John's Birthday Cake"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 transition"
+                className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-400 transition"
                 required
               />
             </div>
             
             <div className="space-y-1">
-              <label className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Target Amount</label>
+              <label className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Target Amount</label>
               <div className="flex gap-2">
                 <input
                   type="number"
@@ -152,13 +152,13 @@ export function GroupPoolsTab({ group }: GroupPoolsTabProps) {
                   step="0.001"
                   value={targetAmount}
                   onChange={(e) => setTargetAmount(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 transition"
+                  className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-400 transition"
                   required
                 />
                 <select
                   value={asset}
                   onChange={(e) => setAsset(e.target.value as 'XLM' | 'USDC')}
-                  className="bg-slate-950 border border-slate-800 rounded-lg px-2 text-xs text-indigo-400 font-semibold focus:outline-none focus:border-indigo-500 transition cursor-pointer"
+                  className="bg-gray-50 border border-gray-300 rounded-xl px-3 text-sm text-violet-600 font-semibold focus:outline-none focus:ring-2 focus:ring-violet-400 transition cursor-pointer"
                 >
                   <option value="XLM">XLM</option>
                   <option value="USDC">USDC</option>
@@ -171,17 +171,17 @@ export function GroupPoolsTab({ group }: GroupPoolsTabProps) {
             <button
               type="button"
               onClick={() => setShowCreate(false)}
-              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg transition"
+              className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-semibold rounded-xl transition"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="flex items-center gap-1.5 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-800 text-white text-xs font-semibold rounded-lg shadow-lg shadow-indigo-500/10 transition"
+              className="flex items-center gap-1.5 px-4 py-2 bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white text-xs font-semibold rounded-xl shadow-sm transition"
             >
               {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-              Create On-Chain Pool
+              Create Pool
             </button>
           </div>
         </form>
@@ -189,12 +189,13 @@ export function GroupPoolsTab({ group }: GroupPoolsTabProps) {
 
       {/* Pools Grid */}
       {pools.length === 0 ? (
-        <div className="text-center py-10 bg-slate-900/10 rounded-xl border border-dashed border-slate-800/80">
-          <Gift className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-          <p className="text-xs text-slate-400">No active pools in this group yet.</p>
+        <div className="text-center py-12 bg-gray-50 rounded-2xl border border-dashed border-gray-300">
+          <Gift className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+          <p className="text-sm font-semibold text-gray-500">No active pools yet</p>
+          <p className="text-xs text-gray-400 mt-1">Click "Create Pool" above to start a campaign.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4">
           {pools.map((p) => {
             const pct = Math.min(100, Math.round((p.balance / p.targetAmount) * 100));
             const isCreator = address && address.toLowerCase() === p.creator.toLowerCase();
@@ -202,59 +203,59 @@ export function GroupPoolsTab({ group }: GroupPoolsTabProps) {
             return (
               <div
                 key={p.id}
-                className={`bg-slate-900/40 p-4 rounded-xl border ${
-                  p.closed ? 'border-emerald-800/30 bg-emerald-950/5' : 'border-slate-800'
-                } flex flex-col justify-between gap-4`}
+                className={`bg-white p-5 rounded-2xl border shadow-sm flex flex-col gap-4 ${
+                  p.closed ? 'border-green-200 bg-green-50/30' : 'border-gray-200'
+                }`}
               >
                 {/* Pool Header */}
                 <div className="space-y-1.5">
                   <div className="flex justify-between items-start">
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                       p.closed
-                        ? 'bg-emerald-950 text-emerald-400 border border-emerald-800/60'
-                        : 'bg-indigo-950 text-indigo-300 border border-indigo-800/40'
+                        ? 'bg-green-100 text-green-700 border border-green-200'
+                        : 'bg-violet-100 text-violet-700 border border-violet-200'
                     }`}>
-                      {p.closed ? 'Closed & Disbursed' : 'Active Pool'}
+                      {p.closed ? '✓ Closed & Disbursed' : '● Active Pool'}
                     </span>
-                    <span className="text-[10px] font-semibold text-slate-400">
+                    <span className="text-[10px] font-semibold text-gray-400">
                       {p.asset} Campaign
                     </span>
                   </div>
                   
-                  <h4 className="text-sm font-semibold text-white">{p.title}</h4>
-                  <p className="text-[11px] text-slate-400">
+                  <h4 className="text-base font-bold text-gray-900">{p.title}</h4>
+                  <p className="text-[11px] text-gray-500">
                     Created by:{' '}
-                    <span className="text-indigo-400 font-mono">
+                    <span className="text-violet-600 font-mono">
                       {p.creator.slice(0, 6)}...{p.creator.slice(-4)}
                     </span>
                   </p>
                 </div>
 
-                {/* Progress Bar Area */}
-                <div className="space-y-1">
+                {/* Progress Bar */}
+                <div className="space-y-1.5">
                   <div className="flex justify-between items-end text-xs">
-                    <span className="text-[11px] text-slate-400">Progress</span>
-                    <span className="font-bold text-white">
+                    <span className="text-gray-500 font-medium">Progress</span>
+                    <span className="font-bold text-gray-900">
                       {p.balance} / {p.targetAmount} {p.asset} ({pct}%)
                     </span>
                   </div>
-                  <div className="w-full bg-slate-950 h-2.5 rounded-full overflow-hidden border border-slate-900">
+                  <div className="w-full bg-gray-200 h-3 rounded-full overflow-hidden">
                     <div
                       style={{ width: `${pct}%` }}
                       className={`h-full rounded-full transition-all duration-500 ${
                         p.closed
-                          ? 'bg-emerald-500'
+                          ? 'bg-green-500'
                           : pct >= 100
-                          ? 'bg-indigo-500 shadow-[0_0_8px_#6366f1]'
-                          : 'bg-gradient-to-r from-indigo-600 to-indigo-400'
+                          ? 'bg-violet-500 shadow-[0_0_8px_#7c3aed]'
+                          : 'bg-gradient-to-r from-violet-600 to-violet-400'
                       }`}
                     />
                   </div>
                 </div>
 
-                {/* Contributor Action Area */}
+                {/* Action Area */}
                 {!p.closed ? (
-                  <div className="space-y-3 pt-2 border-t border-slate-800/60">
+                  <div className="space-y-3 pt-2 border-t border-gray-100">
                     <div className="flex gap-2">
                       <input
                         type="number"
@@ -264,12 +265,12 @@ export function GroupPoolsTab({ group }: GroupPoolsTabProps) {
                         onChange={(e) =>
                           setDonateAmounts((prev) => ({ ...prev, [p.id]: e.target.value }))
                         }
-                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-indigo-500 transition"
+                        className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-400 transition"
                       />
                       <button
                         onClick={() => handleDonate(p.id, p.asset)}
                         disabled={loading}
-                        className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg flex items-center gap-1 transition"
+                        className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold rounded-xl flex items-center gap-1 transition disabled:opacity-50"
                       >
                         Donate
                       </button>
@@ -279,16 +280,17 @@ export function GroupPoolsTab({ group }: GroupPoolsTabProps) {
                       <button
                         onClick={() => handleWithdraw(p.id, p.asset)}
                         disabled={loading}
-                        className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-800 text-white text-xs font-bold rounded-lg border border-emerald-500/20 transition flex items-center justify-center gap-1"
+                        className="w-full py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5"
                       >
+                        <CheckCircle2 className="w-4 h-4" />
                         Withdraw Pool to Wallet ({p.balance} {p.asset})
                       </button>
                     )}
                   </div>
                 ) : (
-                  <div className="flex items-center justify-center gap-1.5 text-xs text-emerald-400 bg-emerald-950/20 py-2 rounded-lg border border-emerald-800/10">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    <span>Funds Disbursed to Creator</span>
+                  <div className="flex items-center justify-center gap-1.5 text-xs text-green-700 bg-green-50 py-2.5 rounded-xl border border-green-200">
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span className="font-semibold">Funds Disbursed to Creator</span>
                   </div>
                 )}
               </div>
