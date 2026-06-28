@@ -43,14 +43,28 @@ CREATE TABLE payment_requests (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Allow anonymous reads and writes (For quick local development)
--- WARNING: In production, you must setup Row Level Security (RLS) properly!
+-- 5. Create pools table
+CREATE TABLE pools (
+  id TEXT PRIMARY KEY,
+  group_id TEXT REFERENCES groups(id) ON DELETE CASCADE,
+  creator TEXT NOT NULL,
+  title TEXT NOT NULL,
+  target_amount DOUBLE PRECISION NOT NULL,
+  balance DOUBLE PRECISION NOT NULL DEFAULT 0,
+  closed BOOLEAN DEFAULT FALSE,
+  asset TEXT NOT NULL DEFAULT 'XLM',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 ALTER TABLE groups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE group_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payment_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pools ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Enable all for groups" ON groups FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Enable all for group_members" ON group_members FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Enable all for expenses" ON expenses FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Enable all for payment_requests" ON payment_requests FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Enable all for pools" ON pools FOR ALL USING (true) WITH CHECK (true);
+
