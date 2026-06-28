@@ -1,5 +1,5 @@
 import { Send, Calculator, QrCode, Inbox, Users } from 'lucide-react';
-import { useRequestStore } from '../../store';
+import { useRequestStore, useWalletStore } from '../../store';
 import type { PaymentRequest } from '../../types';
 
 const NAV_ITEMS = [
@@ -9,8 +9,9 @@ const NAV_ITEMS = [
 ];
 
 export function MobileNav({ active, setActive }: { active: string; setActive: (id: any) => void }) {
-  const { requests } = useRequestStore();
-  const pending = requests.filter((r: PaymentRequest) => r.status === 'pending').length;
+  const { address } = useWalletStore();
+  const getPendingCount = useRequestStore((s) => s.getPendingCount);
+  const pending = address ? getPendingCount(address) : 0;
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex md:hidden z-50 safe-area-inset-bottom">

@@ -1,18 +1,13 @@
 import { useState, useMemo } from 'react';
 import {
-  Horizon,
-  TransactionBuilder,
-  Networks,
-  BASE_FEE,
-  Operation,
-  Asset,
-  Memo,
+  Horizon, TransactionBuilder, Networks,
+  BASE_FEE, Operation, Asset, Memo,
 } from '@stellar/stellar-sdk';
 import { useWallet } from './useWallet';
 import { useWalletStore } from '../store/walletStore';
 import { useGroupStore } from '../store/groupStore';
 import { useRequestStore } from '../store/requestStore';
-import { calculateSettlements, totalSpent, memberNetBalance, memberBalances } from '../utils/settlement';
+import { calculateSettlements, totalSpent, memberBalances } from '../utils/settlement';
 import { Settlement } from '../types';
 
 const server = new Horizon.Server(import.meta.env.VITE_HORIZON_URL);
@@ -21,118 +16,88 @@ export function useGroupSettlement(groupId: string) {
   const { address } = useWalletStore();
   const { signXdr } = useWallet();
   const { getGroup } = useGroupStore();
-  const { addRequest, markPaid, markRejected } = useRequestStore();
+  const { addRequest } = useRequestStore();
 
   const [paying, setPaying] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const group = getGroup(groupId);
 
-  // ── Derived: paid requests for this group ────────────────
-  const allRequests = useRequestStore((s) => s.requests);
-  const groupRequests = useMemo(() => 
-    allRequests.filter(r => r.groupId === groupId && r.status === 'paid'),
-    [allRequests, groupId]
-  );
-
-  // ── Derived: all settlements for this group ───────────────
   const settlements = useMemo(
-    () => (group ? calculateSettlements(group.expenses, group.members, groupRequests) : []),
-    [group, groupRequests]
+    () => (group ? calculateSettlements(group.expenses, group.members) : []),
+    [group]
   );
 
-  // ── Derived: who the connected wallet is in this group ───
   const myMember = useMemo(
     () => (group && address ? group.members.find((m) => m.address === address) ?? null : null),
     [group, address]
   );
 
-  // ── Derived: settlements the connected wallet must pay ───
   const myOutgoingSettlements = useMemo(
-    () => (address ? settlements.filter((s) => s.fromAddress === address) : []),
+    () => settlements.filter((s) => s.fromAddress === address),
     [settlements, address]
   );
 
-  // ── Derived: settlements the connected wallet will receive
   const myIncomingSettlements = useMemo(
-    () => (address ? settlements.filter((s) => s.toAddress === address) : []),
+    () => settlements.filter((s) => s.toAddress === address),
     [settlements, address]
   );
 
-  // ── Derived: total spent and per-member balances ─────────
   const total = useMemo(() => (group ? totalSpent(group.expenses) : 0), [group]);
 
   const balances = useMemo(
-    () => (group ? memberBalances(group.members, group.expenses, groupRequests) : {}),
-    [group, groupRequests]
+    () => (group ? memberBalances(group.members, group.expenses) : {}),
+    [group]
   );
 
   const myBalance = useMemo(
-    () => (myMember && balances[myMember.id]) ?? { paid: 0, owed: 0, net: 0 },
+    () => (myMember ? balances[myMember.id] ?? { paid: 0, owed: 0, net: 0 } : { paid: 0, owed: 0, net: 0 }),
     [myMember, balances]
   );
 
-  // ── ACTION 1: Pay a settlement immediately on-chain ───────
-  /**
-   * Sends XLM on Stellar Testnet and saves a paid record.
-   * Called when the connected wallet IS the debtor (fromAddress === myAddress).
-   */
+  // ── PAY: sends XLM on Stellar + saves receipt to Supabase ──
   const paySettlement = async (settlement: Settlement): Promise<string> => {
     if (!address) throw new Error('Wallet not connected');
-    if (settlement.fromAddress !== address) {
-      throw new Error("This is not your payment — you are not the debtor in this settlement.");
+    if (settlement.fromAddress !== address) throw new Error('This is not your payment to make');
+    if (!settlement.toAddress?.startsWith('G') || settlement.toAddress.length !== 56) {
+      throw new Error(`${settlement.toName} has no valid Stellar address. Recreate the group with their G... key.`);
     }
-    if (!settlement.toAddress || settlement.toAddress.length !== 56 || !settlement.toAddress.startsWith('G')) {
-      throw new Error(
-        `Cannot pay: ${settlement.toName} does not have a valid Stellar address. ` +
-        `Ask them to share their G... public key.`
-      );
-    }
-    if (settlement.amount <= 0) throw new Error('Settlement amount must be greater than 0');
+    if (settlement.amount <= 0) throw new Error('Amount must be greater than 0');
 
-    const settlementKey = `${settlement.from}-${settlement.to}`;
-    setPaying(settlementKey);
+    const key = `${settlement.from}-${settlement.to}`;
+    setPaying(key);
     setError(null);
 
     try {
-      // 1. Load source account from Horizon
       const sourceAccount = await server.loadAccount(address);
-
-      // 2. Build the Stellar payment transaction
       const memo = `${group?.name ?? 'Group'} split`.slice(0, 28);
+
       const tx = new TransactionBuilder(sourceAccount, {
         fee: BASE_FEE,
         networkPassphrase: Networks.TESTNET,
       })
-        .addOperation(
-          Operation.payment({
-            destination: settlement.toAddress,
-            asset: Asset.native(),
-            amount: settlement.amount.toFixed(7),
-          })
-        )
+        .addOperation(Operation.payment({
+          destination: settlement.toAddress,
+          asset: Asset.native(),
+          amount: settlement.amount.toFixed(7),
+        }))
         .addMemo(Memo.text(memo))
         .setTimeout(30)
         .build();
 
-      // 3. Sign via StellarWalletsKit
       const xdr = tx.toEnvelope().toXDR('base64');
       const signedXDR = await signXdr(xdr);
-
-      // 4. Submit to Stellar Testnet
       const signedTx = TransactionBuilder.fromXDR(signedXDR, Networks.TESTNET);
       const response = await server.submitTransaction(signedTx);
       const txHash = response.hash;
 
-      // 5. Save a PAID receipt record in requestStore using our uniform format:
-      //    fromAddress = settlement.toAddress (the receiver / creditor)
-      //    toAddress = address (the payer / debtor — that's me)
-      addRequest({
-        fromAddress: settlement.toAddress,   // receiver (creditor)
-        toAddress: address,                 // I (the debtor) sent this
-        fromName: settlement.toName,
+      // Save paid receipt to Supabase — the RECEIVER will see this in their outgoing
+      await addRequest({
+        fromAddress: address,
+        toAddress: settlement.toAddress,
+        fromName: myMember?.name ?? settlement.fromName,
         amount: settlement.amount.toFixed(7),
-        memo: memo,
+        memo,
         groupId: group?.id,
         groupName: group?.name,
         status: 'paid',
@@ -143,8 +108,7 @@ export function useGroupSettlement(groupId: string) {
     } catch (err: any) {
       const msg =
         err?.response?.data?.extras?.result_codes?.operations?.[0] ??
-        err?.message ??
-        'Transaction failed';
+        err?.message ?? 'Transaction failed';
       setError(msg);
       throw new Error(msg);
     } finally {
@@ -152,93 +116,51 @@ export function useGroupSettlement(groupId: string) {
     }
   };
 
-  // ── ACTION 2: Send a payment REQUEST to a debtor ─────────
-  /**
-   * Called by the CREDITOR (person who is owed money) to notify the DEBTOR.
-   * Creates a pending PaymentRequest with toAddress = debtor's wallet.
-   * When the debtor connects their wallet, they see this in their inbox via getIncoming().
-   */
+  // ── REQUEST: saves to Supabase so DEBTOR sees it in their inbox ──
   const sendPaymentRequest = async (settlement: Settlement): Promise<string> => {
     if (!address) throw new Error('Wallet not connected');
     if (settlement.toAddress !== address) {
-      throw new Error("You can only send requests for settlements where you are the creditor.");
+      throw new Error('You can only request payment for settlements where you are the creditor');
     }
-    if (!settlement.fromAddress || settlement.fromAddress.length !== 56) {
-      throw new Error(
-        `Cannot send request: ${settlement.fromName} has no Stellar address saved. ` +
-        `The group must be recreated with all addresses filled in.`
-      );
+    if (!settlement.fromAddress?.startsWith('G') || settlement.fromAddress.length !== 56) {
+      throw new Error(`${settlement.fromName} has no Stellar address. Recreate the group with their G... key.`);
     }
 
-    // Smart check: Check for existing pending request
-    const existingPending = allRequests.find(
-      (r) =>
-        r.groupId === groupId &&
-        r.status === 'pending' &&
-        r.fromAddress.toLowerCase() === address.toLowerCase() &&
-        r.toAddress.toLowerCase() === settlement.fromAddress.toLowerCase()
-    );
-
-    if (existingPending) {
-      if (Math.abs(Number(existingPending.amount) - settlement.amount) > 0.0000001) {
-        // Reject outdated request
-        await markRejected(existingPending.id);
-      } else {
-        // Already exists with exact same amount, return the existing request ID
-        return existingPending.id;
-      }
-    }
-
+    // toAddress = fromAddress (the debtor) — they see it in their inbox
     const requestId = await addRequest({
-      fromAddress: address,
-      toAddress: settlement.fromAddress,
+      fromAddress: address,              // creditor (me) — who is owed
+      toAddress: settlement.fromAddress, // debtor — whose inbox this goes into
       fromName: myMember?.name ?? settlement.toName,
       amount: settlement.amount.toFixed(7),
-      memo: `${group?.name ?? 'Group'} — settle with ${myMember?.name ?? 'member'}`,
+      memo: `${group?.name ?? 'Group'} — payment request from ${myMember?.name ?? 'member'}`,
       groupId: group?.id,
       groupName: group?.name,
       status: 'pending',
     });
-
     return requestId;
   };
 
+  // ── BULK REQUEST: send to all debtors at once ──
   const sendAllPaymentRequests = async (): Promise<number> => {
     if (!address) return 0;
     const myReceivables = settlements.filter((s) => s.toAddress === address);
     let count = 0;
     for (const s of myReceivables) {
       try {
-        const existingPending = allRequests.find(
-          (r) =>
-            r.groupId === groupId &&
-            r.status === 'pending' &&
-            r.fromAddress.toLowerCase() === address.toLowerCase() &&
-            r.toAddress.toLowerCase() === s.fromAddress.toLowerCase()
-        );
-        // Only trigger request sending if no matching pending exists, or if it is outdated
-        if (!existingPending || Math.abs(Number(existingPending.amount) - s.amount) > 0.0000001) {
-          await sendPaymentRequest(s);
-          count++;
-        }
+        await sendPaymentRequest(s);
+        count++;
       } catch {
-        // skip invalid entries silently
+        // skip invalid ones silently
       }
     }
     return count;
   };
 
   return {
-    group,
-    settlements,
-    myMember,
-    myOutgoingSettlements,
-    myIncomingSettlements,
-    myBalance,
-    balances,
-    total,
-    paying,
-    error,
+    group, settlements, myMember,
+    myOutgoingSettlements, myIncomingSettlements,
+    myBalance, balances, total,
+    paying, error,
     paySettlement,
     sendPaymentRequest,
     sendAllPaymentRequests,

@@ -13,7 +13,7 @@ export function useContractEvents() {
       try {
         const latest = await rpcServer.getLatestLedger();
         const startLedger = lastLedger === 0
-          ? Math.max(1, latest.sequence - 200)
+          ? Math.max(1, latest.sequence - 100)
           : lastLedger + 1;
 
         if (startLedger > latest.sequence) return;

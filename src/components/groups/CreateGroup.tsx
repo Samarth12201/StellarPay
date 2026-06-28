@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Trash2, Loader2, AlertCircle, Info } from 'lucide-react';
 import { useGroupStore } from '../../store/groupStore';
 import { useWalletStore } from '../../store/walletStore';
@@ -27,6 +27,14 @@ export function CreateGroup() {
     { _key: nanoid(), name: '', address: '' },
   ]);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (myAddress) {
+      setMembers((ms) =>
+        ms.map((m, idx) => (idx === 0 && m.address === '' ? { ...m, address: myAddress } : m))
+      );
+    }
+  }, [myAddress]);
 
   const updateMember = (_key: string, field: 'name' | 'address', value: string) =>
     setMembers((ms) => ms.map((m) => (m._key === _key ? { ...m, [field]: value } : m)));
