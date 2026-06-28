@@ -1,37 +1,52 @@
 # StellarPay Level 3 Orange Belt Walkthrough
 
-We have successfully refactored and polished StellarPay to meet all the **Level 3 Orange Belt** submission criteria, resolving key UX and syncing bugs.
+We have successfully refactored and upgraded StellarPay with advanced on-chain features and contract logic to meet all the **Level 3 Orange Belt** submission criteria.
 
-Here is a summary of the core features and architectural improvements we made:
+Here is a summary of the core features and architectural improvements:
 
-## 1. Merged Send & Contract Tabs
-- **Simplified Navigation:** Removed the separate "Contract" page. We unified all on-chain payment options into a single upgraded **"Send"** tab.
-- **Two Modes:**
-  - **Simple Send:** Standard direct XLM payment on Stellar Testnet.
-  - **Pay On-Chain Request:** Input a Soroban Smart Contract Request ID, load details, and settle atomically (combining native transfer + contract `mark_paid` call in a single transaction).
-- **Collapsible Contract Info:** Display the deployed contract addresses directly at the bottom of the on-chain request form for evaluation transparency.
+## 1. Deployed Soroban Contracts
+- **Group Expense & Pools Contract:** `CCXGCUR7WRG75FT3M4DW763MMQW6ZHDFRPHVX6L5W67MWY3ED5YVBELB`
+- **Payment Request Registry:** `CBJJMXJVIXE6ZAK7WBOFX46ATAEJEXRJUNETL5RXR7J6LF35GMN3G742`
 
-## 2. Cloud Synchronization & Syncing Fixes
-- **Double-Write Mutations:** Modified `groupStore` and `requestStore` actions to immediately upsert data to Supabase (e.g. `createGroup`, `addExpense`, `addRequest`), ensuring other members see updates immediately.
-- **Inbox Address Routing:** Corrected `getIncoming`, `getOutgoing`, and `getPendingCount` selectors to properly filter queries based on the connected wallet's public key rather than displaying all requests globally.
-- **State Keys Upgrade:** Migrated local storage persist keys to `stellarpay-groups-v4` and `stellarpay-requests-v4` to purge old schemas.
+---
 
-## 3. Real-Time Toast Notifications
-- **INSERT-only Filter:** Created a new hook (`useRealtimeRequests`) that subscribes to Supabase updates on the `INSERT` event only.
-- **Debounced Load Alert:** Suppresses notifications on initial page load via a 3-second ref state timer, ensuring alerts only trigger for actual new requests.
-- **Dark Indigo Toast:** Displays a premium styled toast alert whenever another user sends a request to your address.
+## 2. USDC Stablecoin Settlements (Inter-Contract Calls)
+- **Asset Selection:** Added a currency dropdown (XLM / USDC) to the expense splitting forms.
+- **On-Chain Token Settle:** When a user settles a group split in USDC, the app builds a transaction calling `settle_expense_with_token` on our deployed `group_expense` contract.
+- **Inter-Contract Call:** The contract uses the `token::Client` to perform an on-chain cross-contract call to the official Testnet USDC token contract (`CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA`) to transfer funds atomically from the payer to the receiver.
 
-## 4. Ledger Event Feed Polling
-- **Sequence Underflow Fix:** Modified `startLedger` calculation in `useContractEvents.ts` to poll back a maximum of 100 ledgers (instead of 200) when historical state is empty. This prevents index lookup errors on Testnet RPC servers.
+---
 
-## 5. Group Member Address Validation
-- **Stellar Address Check:** In `CreateGroup.tsx`, form submission is blocked until every member's address starts with `G` and has a length of exactly 56 characters.
-- **Connected Wallet Auto-Fill:** The first member row ("Me") dynamically auto-fills with the connected wallet address when it becomes available.
+## 3. Voluntary Crowdfunded Escrow Pools (Gift / Event Jars)
+- **Smart Escrow Custody:** Users can create voluntary group pools (e.g., *"Group Gift Fund"*).
+- **On-Chain Escrow Storage:** Contributions are transferred from members' wallets directly to the smart contract address, which holds them in custody.
+- **Visual Progress Bar:** The UI features a glassmorphic dashboard with dynamic progress indicators showing percentage raised.
+- **Secure Release:** Only the creator of the pool can trigger the `withdraw_pool` function on-chain, which releases the escrowed funds to their wallet and closes the pool.
+- **Trustline Helper:** Added a 1-click **"Add USDC Trustline"** button that invokes a Horizon `changeTrust` transaction to instantly establish USDC trustlines for new users.
 
-## 6. Verification & Test Results
-- **Type Safety:** Compilation checks (`npm run typecheck`) succeed with 0 type errors.
-- **Vitest Unit Tests:** Increased the test suite to **17 passing unit tests** covering:
-  - Optimal settlement net-balance splits
-  - `useGroupSettlement` Zustand selector hooks
-  - `SettlementView` list and action rendering
-- **Production Bundling:** Verified that `npm run build` succeeds and produces the optimized production client bundles.
+---
+
+## 4. Real-Time Syncing & Notifications
+- **Zustand + Supabase Sync:** All group creations, expense splits, pools, and request statuses write to local storage and sync to the cloud database.
+- **Supabase Real-Time Subscriptions:** Listens to `INSERT` events to alert users with a premium dark-indigo toast notification whenever another member requests funds.
+- **Ledger Sequence Underflow Fix:** Refactored `useContractEvents.ts` to fetch at most 100 ledgers back if state is empty, preventing Testnet RPC nodes from failing.
+
+---
+
+## 5. UI/UX & Responsive Layouts
+- **Send & Contract Tab Merger:** Unified all on-chain payment types into one clean, collapsible form.
+- **Stellar Address Form Checks:** Enforces that every member address is a valid Stellar key (56 characters, starts with `G`), and auto-fills "Me" with the connected Freighter wallet key.
+
+---
+
+## 6. Verification & Test Output
+- **Rust Contract Tests:** Compiles and passes all cargo tests:
+  ```bash
+  $ cargo test
+  running 3 tests
+  test test::test_create_pool_success ... ok
+  test test::test_create_group_success ... ok
+  test test::test_add_expense_and_retrieve ... ok
+  ```
+- **TypeScript & Build Checks:** `npm run typecheck` and `npm run build` compile successfully with 0 errors.
+- **Vitest Unit Tests:** Fully passes 17 frontend unit tests covering calculation engines, Zustand store selectors, and component rendering.
