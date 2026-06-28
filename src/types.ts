@@ -32,11 +32,12 @@ export interface GroupMember {
 export interface Expense {
   id: string;
   description: string;
-  totalAmount: number;  // XLM
+  totalAmount: number;  // XLM or USDC
   paidBy: string;       // GroupMember.id of who paid upfront
   splitAmong: string[]; // array of GroupMember.id — NOT addresses
   date: Date;
   settled: boolean;
+  asset?: 'XLM' | 'USDC'; // selected split asset type
 }
 
 export interface Group {
@@ -44,8 +45,31 @@ export interface Group {
   name: string;
   members: GroupMember[];
   expenses: Expense[];
+  pools?: Pool[];       // voluntary pools for this group
   createdAt: Date;
 }
+
+export interface Pool {
+  id: string;           // pool ID (on-chain u64 converted to string or nanoid)
+  groupId: string;
+  creator: string;      // wallet address
+  title: string;
+  targetAmount: number; // target pool amount in base unit
+  balance: number;      // current gathered balance in base unit
+  closed: boolean;
+  asset: 'XLM' | 'USDC';
+  createdAt: Date;
+}
+
+export interface PoolContribution {
+  id: string;
+  poolId: string;
+  contributor: string;  // contributor wallet address
+  contributorName: string;
+  amount: number;
+  timestamp: Date;
+}
+
 
 // ─── Settlement (calculated, never stored) ─────────────────────
 

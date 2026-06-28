@@ -1,14 +1,15 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Users, Receipt, Send, Bell } from 'lucide-react';
+import { ArrowLeft, Plus, Users, Receipt, Send, Bell, Gift } from 'lucide-react';
 import { useGroupSettlement } from '../../hooks/useGroupSettlement';
 import { useWalletStore } from '../../store/walletStore';
 import { SettlementView } from './SettlementView';
 import { AddExpense } from './AddExpense';
+import { GroupPoolsTab } from './GroupPoolsTab';
 import { Settlement } from '../../types';
 import toast from 'react-hot-toast';
 
-type Tab = 'expenses' | 'settle' | 'members';
+type Tab = 'expenses' | 'settle' | 'members' | 'pools';
 
 export function GroupDetail() {
   const { groupId } = useParams<{ groupId: string }>();
@@ -82,7 +83,7 @@ export function GroupDetail() {
       {/* Balance summary */}
       <div className="grid grid-cols-3 gap-3">
         <div className="bg-gray-50 rounded-xl p-3 text-center">
-          <p className="text-xs text-gray-500 mb-0.5">Total</p>
+          <p className="text-xs text-gray-500 mb-0.5">Total Spend</p>
           <p className="text-base font-bold text-gray-900">{total} XLM</p>
         </div>
         <div className={`rounded-xl p-3 text-center ${
@@ -112,6 +113,7 @@ export function GroupDetail() {
         </div>
       )}
 
+      {/* My receivables callout */}
       {myIncoming.length > 0 && (
         <div className="bg-violet-50 border border-violet-200 rounded-xl px-4 py-3 flex items-start justify-between gap-2">
           <div>
@@ -134,6 +136,7 @@ export function GroupDetail() {
         {([
           { id: 'expenses', label: 'Expenses', icon: Receipt },
           { id: 'settle',   label: 'Settle up', icon: Send },
+          { id: 'pools',    label: 'Pools', icon: Gift },
           { id: 'members',  label: 'Members', icon: Users },
         ] as const).map(({ id, label, icon: Icon }) => (
           <button
@@ -177,13 +180,13 @@ export function GroupDetail() {
                   <div className="flex-1">
                     <p className="text-sm font-semibold text-gray-800">{e.description}</p>
                     <p className="text-xs text-gray-400 mt-0.5">
-                      Paid by {payer?.name ?? 'unknown'} · split {e.splitAmong.length} ways ({share.toFixed(2)} XLM each)
+                      Paid by {payer?.name ?? 'unknown'} · split {e.splitAmong.length} ways ({share.toFixed(2)} {e.asset || 'XLM'} each)
                     </p>
                     {e.settled && (
                       <p className="text-xs text-green-600 mt-0.5">✓ Settled on-chain</p>
                     )}
                   </div>
-                  <span className="text-sm font-bold text-gray-900">{e.totalAmount} XLM</span>
+                  <span className="text-sm font-bold text-gray-900">{e.totalAmount} {e.asset || 'XLM'}</span>
                 </div>
               );
             })
@@ -191,7 +194,7 @@ export function GroupDetail() {
         </div>
       )}
 
-      {/* Settle tab — THE FIXED PART */}
+      {/* Settle tab */}
       {tab === 'settle' && (
         <div className="space-y-4">
           {settlements.length > 0 && (
@@ -215,11 +218,15 @@ export function GroupDetail() {
         </div>
       )}
 
+      {/* Pools tab */}
+      {tab === 'pools' && (
+        <GroupPoolsTab group={group} />
+      )}
+
       {/* Members tab */}
       {tab === 'members' && (
         <div className="space-y-2">
           {group.members.map((m) => {
-            const bal = myBalance; // simplified — you can call memberBalance per member
             return (
               <div key={m.id} className="flex items-center gap-3 border border-gray-200 rounded-xl p-3">
                 <div

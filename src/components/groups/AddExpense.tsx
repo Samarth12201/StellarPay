@@ -18,6 +18,7 @@ export function AddExpense({ groupId, onDone }: Props) {
   const [amount, setAmount] = useState('');
   const [paidById, setPaidById] = useState<string>('');
   const [splitAmong, setSplitAmong] = useState<string[]>([]);
+  const [asset, setAsset] = useState<'XLM' | 'USDC'>('XLM');
 
   if (!group) return null;
 
@@ -63,6 +64,7 @@ export function AddExpense({ groupId, onDone }: Props) {
       totalAmount: amountNum,
       paidBy: activePaidById,
       splitAmong: activeSplitAmong,
+      asset,
     });
     toast.success('Expense added!');
     setDescription('');
@@ -85,16 +87,26 @@ export function AddExpense({ groupId, onDone }: Props) {
       </div>
 
       <div>
-        <label className="block text-xs font-semibold text-gray-600 mb-1.5">Amount (XLM)</label>
-        <input
-          type="number"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          placeholder="0.00"
-          min="0.0000001"
-          step="0.01"
-          className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-violet-400"
-        />
+        <label className="block text-xs font-semibold text-gray-600 mb-1.5">Amount & Currency</label>
+        <div className="flex gap-2">
+          <input
+            type="number"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="0.00"
+            min="0.0000001"
+            step="0.01"
+            className="flex-1 border border-gray-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-violet-400"
+          />
+          <select
+            value={asset}
+            onChange={(e) => setAsset(e.target.value as 'XLM' | 'USDC')}
+            className="bg-gray-50 border border-gray-300 rounded-xl px-3 text-sm font-semibold text-violet-600 outline-none focus:ring-2 focus:ring-violet-400 cursor-pointer"
+          >
+            <option value="XLM">XLM</option>
+            <option value="USDC">USDC</option>
+          </select>
+        </div>
       </div>
 
       <div>
@@ -127,7 +139,7 @@ export function AddExpense({ groupId, onDone }: Props) {
           Split among
           {activeSplitAmong.length > 0 && amount && !isNaN(amountNum) && (
             <span className="ml-2 text-violet-500 font-normal">
-              ({sharePerPerson} XLM each)
+              ({sharePerPerson} {asset} each)
             </span>
           )}
         </label>

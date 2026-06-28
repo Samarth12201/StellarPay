@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import {
   Horizon, TransactionBuilder, Networks,
   BASE_FEE, Operation, Asset, Memo,
+  Contract, Address, nativeToScVal, rpc
 } from '@stellar/stellar-sdk';
 import { useWallet } from './useWallet';
 import { useWalletStore } from '../store/walletStore';
@@ -9,8 +10,10 @@ import { useGroupStore } from '../store/groupStore';
 import { useRequestStore } from '../store/requestStore';
 import { calculateSettlements, totalSpent, memberBalances } from '../utils/settlement';
 import { Settlement } from '../types';
+import { GROUP_EXPENSE_CONTRACT_ADDRESS, USDC_CONTRACT_ADDRESS, NETWORK } from '../constants/contract';
 
 const server = new Horizon.Server(import.meta.env.VITE_HORIZON_URL);
+const rpcServer = new rpc.Server(NETWORK.rpcUrl);
 
 export function useGroupSettlement(groupId: string) {
   const { address } = useWalletStore();
@@ -55,8 +58,8 @@ export function useGroupSettlement(groupId: string) {
     [myMember, balances]
   );
 
-  // ── PAY: sends XLM on Stellar + saves receipt to Supabase ──
-  const paySettlement = async (settlement: Settlement): Promise<string> => {
+  // ── PAY: sends XLM or USDC (contract call) + saves receipt to Supabase ──
+  const paySettlement = async (settlement: Settlement, assetType: 'XLM' | 'USDC' = 'XLM'): Promise<string> => {
     if (!address) throw new Error('Wallet not connected');
     if (settlement.fromAddress !== address) throw new Error('This is not your payment to make');
     if (!settlement.toAddress?.startsWith('G') || settlement.toAddress.length !== 56) {
@@ -69,27 +72,85 @@ export function useGroupSettlement(groupId: string) {
     setError(null);
 
     try {
-      const sourceAccount = await server.loadAccount(address);
+      let txHash = '';
       const memo = `${group?.name ?? 'Group'} split`.slice(0, 28);
 
-      const tx = new TransactionBuilder(sourceAccount, {
-        fee: BASE_FEE,
-        networkPassphrase: Networks.TESTNET,
-      })
-        .addOperation(Operation.payment({
-          destination: settlement.toAddress,
-          asset: Asset.native(),
-          amount: settlement.amount.toFixed(7),
-        }))
-        .addMemo(Memo.text(memo))
-        .setTimeout(30)
-        .build();
+      if (assetType === 'XLM') {
+        const sourceAccount = await server.loadAccount(address);
 
-      const xdr = tx.toEnvelope().toXDR('base64');
-      const signedXDR = await signXdr(xdr);
-      const signedTx = TransactionBuilder.fromXDR(signedXDR, Networks.TESTNET);
-      const response = await server.submitTransaction(signedTx);
-      const txHash = response.hash;
+        const tx = new TransactionBuilder(sourceAccount, {
+          fee: BASE_FEE,
+          networkPassphrase: Networks.TESTNET,
+        })
+          .addOperation(Operation.payment({
+            destination: settlement.toAddress,
+            asset: Asset.native(),
+            amount: settlement.amount.toFixed(7),
+          }))
+          .addMemo(Memo.text(memo))
+          .setTimeout(30)
+          .build();
+
+        const xdr = tx.toEnvelope().toXDR('base64');
+        const signedXDR = await signXdr(xdr);
+        const signedTx = TransactionBuilder.fromXDR(signedXDR, Networks.TESTNET);
+        const response = await server.submitTransaction(signedTx);
+        txHash = response.hash;
+      } else {
+        // USDC payment using Soroban smart contract inter-contract call
+        const contract = new Contract(GROUP_EXPENSE_CONTRACT_ADDRESS);
+        const sourceAccount = await rpcServer.getAccount(address);
+        const amountStroops = Math.round(settlement.amount * 10_000_000); // 7 decimals for USDC
+
+        const tx = new TransactionBuilder(sourceAccount, {
+          fee: BASE_FEE,
+          networkPassphrase: Networks.TESTNET,
+        })
+          .addOperation(
+            contract.call(
+              'settle_expense_with_token',
+              new Address(address).toScVal(),
+              new Address(USDC_CONTRACT_ADDRESS).toScVal(),
+              nativeToScVal(amountStroops, { type: 'i128' }),
+              new Address(settlement.toAddress).toScVal(),
+              nativeToScVal(0, { type: 'u64' }), // group_id = 0 for net split
+              nativeToScVal(0, { type: 'u64' }), // expense_id = 0 for net split
+            )
+          )
+          .setTimeout(60)
+          .build();
+
+        const sim = await rpcServer.simulateTransaction(tx);
+        if (rpc.Api.isSimulationError(sim)) {
+          throw new Error(`Simulation failed: ${sim.error}`);
+        }
+
+        const preparedTx = rpc.assembleTransaction(tx, sim).build();
+        const signedXdr = await signXdr(preparedTx.toEnvelope().toXDR('base64'));
+
+        const response = await rpcServer.sendTransaction(
+          TransactionBuilder.fromXDR(signedXdr, Networks.TESTNET)
+        );
+
+        if (response.status === 'ERROR') {
+          throw new Error('Transaction submission failed');
+        }
+
+        // Poll for confirmation
+        let getResponse = await rpcServer.getTransaction(response.hash);
+        let attempts = 0;
+        while (getResponse.status === rpc.Api.GetTransactionStatus.NOT_FOUND && attempts < 20) {
+          await new Promise((r) => setTimeout(r, 1500));
+          getResponse = await rpcServer.getTransaction(response.hash);
+          attempts++;
+        }
+
+        if (getResponse.status === rpc.Api.GetTransactionStatus.SUCCESS) {
+          txHash = response.hash;
+        } else {
+          throw new Error('USDC Settlement did not confirm in time.');
+        }
+      }
 
       // Save paid receipt to Supabase — the RECEIVER will see this in their outgoing
       await addRequest({
@@ -97,7 +158,7 @@ export function useGroupSettlement(groupId: string) {
         toAddress: settlement.toAddress,
         fromName: myMember?.name ?? settlement.fromName,
         amount: settlement.amount.toFixed(7),
-        memo,
+        memo: `${memo} (${assetType})`,
         groupId: group?.id,
         groupName: group?.name,
         status: 'paid',
@@ -106,9 +167,7 @@ export function useGroupSettlement(groupId: string) {
 
       return txHash;
     } catch (err: any) {
-      const msg =
-        err?.response?.data?.extras?.result_codes?.operations?.[0] ??
-        err?.message ?? 'Transaction failed';
+      const msg = err?.message ?? 'Transaction failed';
       setError(msg);
       throw new Error(msg);
     } finally {

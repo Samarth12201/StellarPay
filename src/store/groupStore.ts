@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Group, GroupMember, Expense } from '../types';
+import { Group, GroupMember, Expense, Pool } from '../types';
 import { nanoid } from 'nanoid';
 import { supabase } from '../lib/supabase';
 
@@ -17,6 +17,9 @@ interface GroupStore {
   deleteGroup: (id: string) => void;
   getGroup: (id: string) => Group | undefined;
   syncFromSupabase: () => Promise<void>;
+  createPool: (groupId: string, poolId: string, title: string, targetAmount: number, creator: string, asset: 'XLM' | 'USDC') => Promise<void>;
+  contributeToPool: (groupId: string, poolId: string, amount: number) => Promise<void>;
+  withdrawFromPool: (groupId: string, poolId: string) => Promise<void>;
 }
 
 export const useGroupStore = create<GroupStore>()(
@@ -33,7 +36,7 @@ export const useGroupStore = create<GroupStore>()(
           avatarColor: AVATAR_COLORS[i % AVATAR_COLORS.length],
         }));
         const group: Group = {
-          id, name, members: newMembers, expenses: [], createdAt: new Date(),
+          id, name, members: newMembers, expenses: [], pools: [], createdAt: new Date(),
         };
         set((s) => ({ groups: [...s.groups, group] }));
 
@@ -73,6 +76,7 @@ export const useGroupStore = create<GroupStore>()(
             paidBy: expense.paidBy,
             splitAmong: expense.splitAmong,
             settled: false,
+            asset: expense.asset || 'XLM',
           });
         }
         return expId;
@@ -108,6 +112,99 @@ export const useGroupStore = create<GroupStore>()(
 
       getGroup: (id) => get().groups.find((g) => g.id === id),
 
+      createPool: async (groupId, poolId, title, targetAmount, creator, asset) => {
+        const newPool: Pool = {
+          id: poolId,
+          groupId,
+          creator,
+          title,
+          targetAmount,
+          balance: 0,
+          closed: false,
+          asset,
+          createdAt: new Date(),
+        };
+
+        set((s) => ({
+          groups: s.groups.map((g) =>
+            g.id === groupId
+              ? { ...g, pools: [...(g.pools || []), newPool] }
+              : g
+          ),
+        }));
+
+        if (supabase) {
+          try {
+            await supabase.from('pools').upsert({
+              id: poolId,
+              group_id: groupId,
+              creator,
+              title,
+              target_amount: targetAmount,
+              balance: 0,
+              closed: false,
+              asset,
+            });
+          } catch (err) {
+            console.warn('Supabase pools upsert failed (possibly table does not exist):', err);
+          }
+        }
+      },
+
+      contributeToPool: async (groupId, poolId, amount) => {
+        set((s) => ({
+          groups: s.groups.map((g) =>
+            g.id === groupId
+              ? {
+                  ...g,
+                  pools: (g.pools || []).map((p) =>
+                    p.id === poolId ? { ...p, balance: p.balance + amount } : p
+                  ),
+                }
+              : g
+          ),
+        }));
+
+        if (supabase) {
+          try {
+            const { data } = await supabase.from('pools').select('balance').eq('id', poolId).single();
+            const currentBalance = data ? (data.balance || 0) : 0;
+            await supabase
+              .from('pools')
+              .update({ balance: currentBalance + amount })
+              .eq('id', poolId);
+          } catch (err) {
+            console.warn('Supabase pools update failed:', err);
+          }
+        }
+      },
+
+      withdrawFromPool: async (groupId, poolId) => {
+        set((s) => ({
+          groups: s.groups.map((g) =>
+            g.id === groupId
+              ? {
+                  ...g,
+                  pools: (g.pools || []).map((p) =>
+                    p.id === poolId ? { ...p, balance: 0, closed: true } : p
+                  ),
+                }
+              : g
+          ),
+        }));
+
+        if (supabase) {
+          try {
+            await supabase
+              .from('pools')
+              .update({ balance: 0, closed: true })
+              .eq('id', poolId);
+          } catch (err) {
+            console.warn('Supabase pools update failed:', err);
+          }
+        }
+      },
+
       syncFromSupabase: async () => {
         const client = supabase;
         if (!client) return;
@@ -133,8 +230,31 @@ export const useGroupStore = create<GroupStore>()(
               splitAmong: e.splitamong ?? e.splitAmong ?? [],
               date: new Date(e.date),
               settled: e.settled,
+              asset: e.asset || 'XLM',
             }));
-            return { id: g.id, name: g.name, members, expenses, createdAt: new Date(g.created_at) };
+
+            let pools: Pool[] = [];
+            try {
+              const { data: poolRows } = await client
+                .from('pools').select('*').eq('group_id', g.id);
+              if (poolRows) {
+                pools = poolRows.map((p) => ({
+                  id: p.id,
+                  groupId: p.group_id,
+                  creator: p.creator,
+                  title: p.title,
+                  targetAmount: p.target_amount,
+                  balance: p.balance,
+                  closed: p.closed,
+                  asset: p.asset || 'XLM',
+                  createdAt: new Date(p.created_at || Date.now()),
+                }));
+              }
+            } catch (err) {
+              console.warn('Supabase pools fetch failed (likely table not created):', err);
+            }
+
+            return { id: g.id, name: g.name, members, expenses, pools, createdAt: new Date(g.created_at) };
           })
         );
         set({ groups: rebuilt });
@@ -143,3 +263,4 @@ export const useGroupStore = create<GroupStore>()(
     { name: 'stellarpay-groups-v4' }
   )
 );
+
