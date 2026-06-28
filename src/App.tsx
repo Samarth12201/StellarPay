@@ -19,7 +19,8 @@ import {
   Wallet,
   FileCode,
   Radio,
-  Users
+  Users,
+  Gift
 } from 'lucide-react';
 import { useRequestStore, useWalletStore } from './store';
 import type { Participant, PaymentRequest, TransactionResult } from './types';
@@ -33,6 +34,7 @@ import { WalletConnect } from './components/wallet/WalletConnect';
 import { TxStatusBar } from './components/tx/TxStatusBar';
 import { EventFeed } from './components/events/EventFeed';
 import { GroupPage } from './pages/GroupPage';
+import { PoolsPage } from './pages/PoolsPage';
 import { MobileNav } from './components/layout/MobileNav';
 import { RequestInbox } from './components/requests/RequestInbox';
 import { CONTRACT_ADDRESS } from './constants/contract';
@@ -420,7 +422,7 @@ function SendPanel() {
 
 function Dashboard() {
   const { address, isConnected } = useWalletStore();
-  const [active, setActive] = useState<'send' | 'requests' | 'events' | 'groups'>('groups');
+  const [active, setActive] = useState<'send' | 'requests' | 'events' | 'groups' | 'pools'>('groups');
   
   const { getIncoming } = useRequestStore();
   
@@ -435,6 +437,7 @@ function Dashboard() {
   const tabs = useMemo(() => [
     ['groups', Users, 'Split Bills (Groups)'],
     ['send', Send, 'Send XLM'],
+    ['pools', Gift, 'Voluntary Pools'],
     ['requests', Inbox, 'Requests'],
     ['events', Radio, 'Live Feed'],
   ] as const, []);
@@ -460,10 +463,11 @@ function Dashboard() {
         </aside>
         <section className="dashMain">
           <h2>{tabs.find(([id]) => id === active)?.[2]}</h2>
-          <p>{active === 'send' ? 'Transfer XLM or pay on-chain requests' : active === 'groups' ? 'Divide group expenses and automatically settle debts using Soroban' : active === 'requests' ? 'Pending requests from groups' : 'Live Contract Events'}</p>
+          <p>{active === 'send' ? 'Transfer XLM or pay on-chain requests' : active === 'groups' ? 'Divide group expenses and automatically settle debts using Soroban' : active === 'pools' ? 'Collect voluntary contributions for gifts, events, or shared costs directly in contract escrow' : active === 'requests' ? 'Pending requests from groups' : 'Live Contract Events'}</p>
           <div className="panel md:pb-6 pb-24">
             {active === 'send' && <SendPanel />}
             {active === 'groups' && <GroupPage />}
+            {active === 'pools' && <PoolsPage />}
             {active === 'requests' && <RequestInbox />}
             {active === 'events' && <EventFeed />}
           </div>

@@ -1,10 +1,11 @@
-import { Send, Calculator, QrCode, Inbox, Users } from 'lucide-react';
+import { Send, Calculator, QrCode, Inbox, Users, Gift } from 'lucide-react';
 import { useRequestStore, useWalletStore } from '../../store';
 import type { PaymentRequest } from '../../types';
 
 const NAV_ITEMS = [
   { id: 'send',     label: 'Send',     icon: Send },
   { id: 'groups',   label: 'Split',    icon: Users },
+  { id: 'pools',    label: 'Pools',    icon: Gift },
   { id: 'requests', label: 'Requests', icon: Inbox },
 ];
 

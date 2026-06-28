@@ -1,15 +1,14 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Users, Receipt, Send, Bell, Gift } from 'lucide-react';
+import { ArrowLeft, Plus, Users, Receipt, Send, Bell } from 'lucide-react';
 import { useGroupSettlement } from '../../hooks/useGroupSettlement';
 import { useWalletStore } from '../../store/walletStore';
 import { SettlementView } from './SettlementView';
 import { AddExpense } from './AddExpense';
-import { GroupPoolsTab } from './GroupPoolsTab';
 import { Settlement } from '../../types';
 import toast from 'react-hot-toast';
 
-type Tab = 'expenses' | 'settle' | 'members' | 'pools';
+type Tab = 'expenses' | 'settle' | 'members';
 
 export function GroupDetail() {
   const { groupId } = useParams<{ groupId: string }>();
@@ -136,7 +135,6 @@ export function GroupDetail() {
         {([
           { id: 'expenses', label: 'Expenses', icon: Receipt },
           { id: 'settle',   label: 'Settle up', icon: Send },
-          { id: 'pools',    label: 'Pools', icon: Gift },
           { id: 'members',  label: 'Members', icon: Users },
         ] as const).map(({ id, label, icon: Icon }) => (
           <button
@@ -216,11 +214,6 @@ export function GroupDetail() {
             groupName={group.name}
           />
         </div>
-      )}
-
-      {/* Pools tab */}
-      {tab === 'pools' && (
-        <GroupPoolsTab group={group} />
       )}
 
       {/* Members tab */}
