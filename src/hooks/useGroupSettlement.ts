@@ -11,6 +11,7 @@ import { useRequestStore } from '../store/requestStore';
 import { calculateSettlements, totalSpent, memberBalances } from '../utils/settlement';
 import { Settlement } from '../types';
 import { GROUP_EXPENSE_CONTRACT_ADDRESS, USDC_CONTRACT_ADDRESS, NETWORK } from '../constants/contract';
+import { supabase } from '../lib/supabase';
 
 const server = new Horizon.Server(import.meta.env.VITE_HORIZON_URL || NETWORK.horizonUrl);
 const rpcServer = new rpc.Server(NETWORK.rpcUrl);
@@ -177,6 +178,17 @@ export function useGroupSettlement(groupId: string) {
           splitAmong: [settlement.to],
           asset: assetType,
         });
+
+        // Clear any pending requests in the inbox for this exact debt
+        if (supabase) {
+          await supabase
+            .from('payment_requests')
+            .update({ status: 'paid', txhash: txHash })
+            .eq('groupid', group.id)
+            .eq('toaddress', address)
+            .eq('fromaddress', settlement.toAddress)
+            .eq('status', 'pending');
+        }
       }
 
       return txHash;
