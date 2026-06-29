@@ -74,25 +74,64 @@ Stellar Wallets Kit · Soroban Smart Contracts (Rust)
 ## 🟠 Level 3 - Orange Belt Submission
 
 ### 👉 Overview
-Transitioning the application into a production-grade decentralized group expense settlement tool. This level introduces a multi-contract architecture, robust test coverage, automated CI/CD pipelines, and responsive mobile-first UI design patterns.
-**Focus:** Advanced smart contracts, settlement optimization algorithms, CI/CD, and responsive UI.
+Production-grade decentralized group expense settlement dApp with multi-contract architecture, USDC stablecoin support, crowdfunding escrow pools, automated CI/CD, and responsive mobile-first UI.
+
+**Focus:** Advanced smart contracts, inter-contract communication, CI/CD pipelines, production architecture, and comprehensive testing.
 
 ### What is implemented in this submission:
-- **GroupExpense Smart Contract:** A new Rust Soroban contract handling group creation and expense logging.
-- **Settlement Engine:** A minimum-transaction path algorithm ("net balance") implemented on the frontend to calculate the fewest possible payments needed to settle debts in a group.
-- **Comprehensive Testing:** Frontend unit tests using Vitest/Testing Library for the settlement engine and UI, plus Rust unit tests for the Soroban contract.
-- **CI/CD Pipeline:** GitHub Actions configured for automated linting, testing (frontend & contract), and automated Vercel deployments.
-- **Mobile-Responsive UI:** Introduction of `MobileNav` and a completely responsive layout using TailwindCSS.
-- **Production-Ready UX:** Implementation of Skeleton loaders during data fetch and a global React `ErrorBoundary` to gracefully handle unexpected crashes.
-- **Web Analytics:** Integrated Vercel Analytics to collect valuable insights on user behavior and site performance with detailed page view metrics, ensuring privacy-respecting traffic analysis.
+- **GroupExpense Smart Contract (Rust/Soroban):** On-chain group creation, expense tracking, pool escrow, and USDC settlements via inter-contract calls.
+- **Inter-Contract Communication:** The `settle_expense_with_token` function calls the USDC SAC (Stellar Asset Contract) via `token::Client` for atomic cross-contract token transfers.
+- **Crowdfunded Escrow Pools:** Users create on-chain voluntary donation campaigns. Contributions are held in contract escrow; only the creator can withdraw.
+- **USDC Stablecoin Settlements:** Full support for Circle Testnet USDC (SEP-41 SAC) alongside native XLM for expense splits and pool contributions.
+- **Settlement Engine:** Minimum-transaction path algorithm ("net balance") to calculate fewest possible payments.
+- **Comprehensive Testing:** 17 frontend unit tests (Vitest) + 3 Rust contract unit tests (cargo test).
+- **CI/CD Pipeline:** GitHub Actions for automated typecheck, testing, and Vercel deployment on every push.
+- **Mobile-Responsive UI:** Bottom navigation bar, responsive layouts, touch-friendly controls.
+- **Real-Time Sync:** Supabase cloud sync + real-time subscription for cross-device payment request notifications.
+- **Error Handling & Loading States:** Global `ErrorBoundary`, transaction status tracker, skeleton loading, toast notifications.
 
 ### ✅ Requirements Met
-- **Multiple Contracts & Inter-contract Calls:** Yes (Added `group_expense`).
-- **Data Indexing / Events:** Yes (Included in `group_expense` contract).
-- **Unit & Integration Tests:** Yes (Vitest for frontend, Rust for contract).
-- **CI/CD Pipeline:** Yes (GitHub Actions configured).
-- **Responsive UI / Mobile friendly:** Yes (`MobileNav` & Tailwind styling).
-- **Deployed to Vercel/Netlify:** Setup ready via GitHub Actions.
+| Requirement | Status | Details |
+|---|---|---|
+| Advanced smart contract development | ✅ | GroupExpense contract with pools, escrow, settlements |
+| Inter-contract communication | ✅ | `settle_expense_with_token` calls USDC SAC contract |
+| Event streaming & real-time updates | ✅ | Supabase realtime + contract event feed |
+| CI/CD pipeline setup | ✅ | `.github/workflows/ci.yml` + `deploy.yml` |
+| Smart contract deployment workflow | ✅ | Compiled, optimized, deployed via Stellar CLI |
+| Mobile responsive frontend | ✅ | `MobileNav` + Tailwind responsive classes |
+| Error handling & loading states | ✅ | ErrorBoundary, TxStatusBar, toast notifications |
+| Tests for contracts and frontend | ✅ | 17 Vitest tests + 3 Rust contract tests |
+| Production-ready architecture | ✅ | Zustand stores, Supabase sync, env config |
+| Documentation & demo | ✅ | Full README, WALKTHROUGH.md, screenshots |
+
+### 📝 Contract Details
+
+**Payment Request Contract (Level 2):**
+- **Address:** `CBJJMXJVIXE6ZAK7WBOFX46ATAEJEXRJUNETL5RXR7J6LF35GMN3G742`
+- **Tx Hash:** `ba9b8565b86502f082566ac24a97ebe5d723eb1fe103ac1901b31ffb7c51417a`
+
+**Group Expense & Pools Contract (Level 3):**
+- **Address:** `CCXGCUR7WRG75FT3M4DW763MMQW6ZHDFRPHVX6L5W67MWY3ED5YVBELB`
+- **Functions:** `create_group`, `add_expense`, `settle_expense`, `settle_expense_with_token`, `create_pool`, `contribute_pool`, `withdraw_pool`
+
+**USDC SAC Contract (Circle Testnet):**
+- **Address:** `CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA`
+- **Issuer:** `GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5`
+
+### 🔗 Links
+- **Live Demo:** [https://stellarpay.vercel.app](https://stellarpay.vercel.app)
+- **GitHub:** [https://github.com/Samarth12201/StellarPay](https://github.com/Samarth12201/StellarPay)
+- **CI/CD:** [GitHub Actions](https://github.com/Samarth12201/StellarPay/actions)
+
+### 🧪 Running Tests
+
+```bash
+# Frontend tests (17 tests)
+npm run test
+
+# Rust contract tests (3 tests)
+cd contracts/group_expense && cargo test
+```
 
 ---
 
@@ -148,3 +187,4 @@ npm run build
 #### Successful Testnet Transaction (Level 2 Contract Call)
 *(Stellar Expert Explorer View)*
 ![Successful testnet transaction](./screenshots/stellar_expert_tx.png)
+
