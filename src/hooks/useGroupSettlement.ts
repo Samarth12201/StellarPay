@@ -122,6 +122,9 @@ export function useGroupSettlement(groupId: string) {
 
         const sim = await rpcServer.simulateTransaction(tx);
         if (rpc.Api.isSimulationError(sim)) {
+          if (sim.error.includes('Error(Contract, #10)')) {
+            throw new Error('Insufficient USDC balance. Please fund your testnet wallet via the Circle Faucet.');
+          }
           throw new Error(`Simulation failed: ${sim.error}`);
         }
 
