@@ -40,6 +40,7 @@ import { RequestInbox } from './components/requests/RequestInbox';
 import { CONTRACT_ADDRESS } from './constants/contract';
 import { useRealtimeRequests } from './hooks/useRealtimeRequests';
 import { useRealtimeGroups } from './hooks/useRealtimeGroups';
+import { ContractRequests } from './components/contract/ContractRequests';
 
 function useBalance() {
   const { address, setBalance } = useWalletStore();
@@ -395,7 +396,7 @@ function AtomicPayForm() {
 }
 
 function SendPanel() {
-  const [sendMode, setSendMode] = useState<'simple' | 'atomic'>('simple');
+  const [sendMode, setSendMode] = useState<'simple' | 'atomic' | 'create'>('simple');
 
   return (
     <div>
@@ -409,14 +410,23 @@ function SendPanel() {
         </button>
         <button
           type="button"
+          onClick={() => setSendMode('create')}
+          className={sendMode === 'create' ? 'flex-1 bg-white text-violet-600 shadow-sm py-1.5 rounded-lg text-xs font-semibold border-0' : 'flex-1 text-gray-500 py-1.5 text-xs border-0 bg-transparent'}
+        >
+          Create Request
+        </button>
+        <button
+          type="button"
           onClick={() => setSendMode('atomic')}
           className={sendMode === 'atomic' ? 'flex-1 bg-white text-violet-600 shadow-sm py-1.5 rounded-lg text-xs font-semibold border-0' : 'flex-1 text-gray-500 py-1.5 text-xs border-0 bg-transparent'}
         >
-          Pay On-Chain Request
+          Pay Request
         </button>
       </div>
 
-      {sendMode === 'simple' ? <SendForm /> : <AtomicPayForm />}
+      {sendMode === 'simple' && <SendForm />}
+      {sendMode === 'create' && <ContractRequests />}
+      {sendMode === 'atomic' && <AtomicPayForm />}
     </div>
   );
 }
