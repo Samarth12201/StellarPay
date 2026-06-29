@@ -74,7 +74,13 @@ export function useGroupSettlement(groupId: string) {
 
     try {
       let txHash = '';
-      const memo = `${group?.name ?? 'Group'} split`.slice(0, 28);
+      let rawMemo = `${group?.name ?? 'Group'} split`;
+      const encoder = new TextEncoder();
+      while (encoder.encode(rawMemo).length > 28) {
+        rawMemo = rawMemo.slice(0, -1);
+      }
+      
+      const memo = rawMemo;
 
       if (assetType === 'XLM') {
         const sourceAccount = await server.loadAccount(address);
@@ -211,13 +217,20 @@ export function useGroupSettlement(groupId: string) {
       throw new Error(`${settlement.fromName} has no Stellar address. Recreate the group with their G... key.`);
     }
 
+    // Ensure memo is strictly <= 28 bytes for Stellar Network
+    let rawMemo = `${group?.name ?? 'Group'} - req from ${myMember?.name ?? 'member'}`;
+    const encoder = new TextEncoder();
+    while (encoder.encode(rawMemo).length > 28) {
+      rawMemo = rawMemo.slice(0, -1);
+    }
+
     // toAddress = fromAddress (the debtor) — they see it in their inbox
     const requestId = await addRequest({
       fromAddress: address,              // creditor (me) — who is owed
       toAddress: settlement.fromAddress, // debtor — whose inbox this goes into
       fromName: myMember?.name ?? settlement.toName,
       amount: settlement.amount.toFixed(7),
-      memo: `${group?.name ?? 'Group'} — payment request from ${myMember?.name ?? 'member'}`,
+      memo: rawMemo,
       groupId: group?.id,
       groupName: group?.name,
       status: 'pending',

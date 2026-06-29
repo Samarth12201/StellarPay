@@ -9,7 +9,7 @@ const AVATAR_COLORS = [
   '#2563EB', '#DB2777', '#0891B2', '#65A30D',
 ];
 
-let hasPoolsTable = false;
+
 
 interface GroupStore {
   groups: Group[];
@@ -44,13 +44,23 @@ export const useGroupStore = create<GroupStore>()(
 
         // Sync to Supabase
         if (supabase) {
-          await supabase.from('groups').upsert({ id, name });
-          await supabase.from('group_members').upsert(
-            newMembers.map((m) => ({
-              id: m.id, group_id: id, name: m.name,
-              address: m.address, avatarColor: m.avatarColor,
-            }))
-          );
+          try {
+            const { error: groupErr } = await supabase.from('groups').upsert({ id, name });
+            if (groupErr) console.error('[createGroup] Error saving group:', groupErr);
+
+            const { error: membersErr } = await supabase.from('group_members').upsert(
+              newMembers.map((m) => ({
+                id: m.id,
+                group_id: id,
+                name: m.name,
+                address: m.address,
+                avatarcolor: m.avatarColor, // lowercase to match Postgres
+              }))
+            );
+            if (membersErr) console.error('[createGroup] Error saving members:', membersErr);
+          } catch (err) {
+            console.error('[createGroup] Unexpected error:', err);
+          }
         }
         return id;
       },
@@ -70,16 +80,21 @@ export const useGroupStore = create<GroupStore>()(
 
         // Sync to Supabase
         if (supabase) {
-          await supabase.from('expenses').upsert({
-            id: expId,
-            group_id: groupId,
-            description: expense.description,
-            totalAmount: expense.totalAmount,
-            paidBy: expense.paidBy,
-            splitAmong: expense.splitAmong,
-            settled: false,
-            asset: expense.asset || 'XLM',
-          });
+          try {
+            const { error } = await supabase.from('expenses').upsert({
+              id: expId,
+              group_id: groupId,
+              description: expense.description,
+              totalamount: expense.totalAmount, // lowercase to match Postgres
+              paidby: expense.paidBy,           // lowercase to match Postgres
+              splitamong: expense.splitAmong,   // lowercase to match Postgres
+              settled: false,
+              // Temporarily removed 'asset' to prevent PGRST204 schema cache errors
+            });
+            if (error) console.error('[addExpense] Error saving expense:', error);
+          } catch (err) {
+            console.error('[addExpense] Unexpected error:', err);
+          }
         }
         return expId;
       },
@@ -147,7 +162,6 @@ export const useGroupStore = create<GroupStore>()(
               closed: false,
               asset,
             });
-            hasPoolsTable = true;
           } catch (err) {
             console.warn('Supabase pools upsert failed (possibly table does not exist):', err);
           }
@@ -212,64 +226,82 @@ export const useGroupStore = create<GroupStore>()(
         const client = supabase;
         if (!client) return;
 
-        const { data: groupRows } = await client.from('groups').select('*');
-        if (!groupRows) return;
+        try {
+          const { data: groupRows, error: groupErr } = await client.from('groups').select('*');
+          if (groupErr) {
+            console.error('[syncFromSupabase] Failed to fetch groups:', groupErr.message);
+            return;
+          }
+          if (!groupRows || groupRows.length === 0) {
+            // No groups in DB — keep local state as-is (might have locally created ones pending sync)
+            return;
+          }
 
-        let allPoolRows: any[] = [];
-        if (hasPoolsTable) {
+          // Always try to fetch pools — don't rely on a flag
+          let allPoolRows: any[] = [];
           try {
             const { data, error } = await client.from('pools').select('*');
-            if (error) {
-              if (error.code === 'PGRST116' || error.message?.includes('does not exist')) {
-                hasPoolsTable = false;
-              }
-            } else if (data) {
+            if (!error && data) {
               allPoolRows = data;
             }
-          } catch (err) {
-            hasPoolsTable = false;
+          } catch {
+            // pools table might not exist yet — that's fine
           }
-        }
 
-        const rebuilt: Group[] = await Promise.all(
-          groupRows.map(async (g) => {
-            const { data: memberRows } = await client
-              .from('group_members').select('*').eq('group_id', g.id);
-            const { data: expenseRows } = await client
-              .from('expenses').select('*').eq('group_id', g.id);
+          const rebuilt: Group[] = await Promise.all(
+            groupRows.map(async (g) => {
+              const { data: memberRows } = await client
+                .from('group_members').select('*').eq('group_id', g.id);
+              const { data: expenseRows } = await client
+                .from('expenses').select('*').eq('group_id', g.id);
 
-            const members: GroupMember[] = (memberRows ?? []).map((m) => ({
-              id: m.id, name: m.name, address: m.address, avatarColor: m.avatarcolor ?? m.avatarColor,
-            }));
-            const expenses: Expense[] = (expenseRows ?? []).map((e) => ({
-              id: e.id,
-              description: e.description,
-              totalAmount: e.totalamount ?? e.totalAmount,
-              paidBy: e.paidby ?? e.paidBy,
-              splitAmong: e.splitamong ?? e.splitAmong ?? [],
-              date: new Date(e.date),
-              settled: e.settled,
-              asset: e.asset || 'XLM',
-            }));
-
-            const pools: Pool[] = allPoolRows
-              .filter((p) => p.group_id === g.id)
-              .map((p) => ({
-                id: p.id,
-                groupId: p.group_id,
-                creator: p.creator,
-                title: p.title,
-                targetAmount: p.target_amount,
-                balance: p.balance,
-                closed: p.closed,
-                asset: p.asset || 'XLM',
-                createdAt: new Date(p.created_at || Date.now()),
+              const members: GroupMember[] = (memberRows ?? []).map((m) => ({
+                id: m.id,
+                name: m.name,
+                address: m.address,
+                avatarColor: m.avatarcolor ?? m.avatarColor ?? '#7C3AED',
               }));
 
-            return { id: g.id, name: g.name, members, expenses, pools, createdAt: new Date(g.created_at) };
-          })
-        );
-        set({ groups: rebuilt });
+              const expenses: Expense[] = (expenseRows ?? []).map((e) => ({
+                id: e.id,
+                description: e.description,
+                totalAmount: e.totalamount ?? e.totalAmount ?? 0,
+                paidBy: e.paidby ?? e.paidBy,
+                splitAmong: e.splitamong ?? e.splitAmong ?? [],
+                date: new Date(e.date ?? e.created_at ?? Date.now()),
+                settled: e.settled ?? false,
+                asset: e.asset || 'XLM',
+              }));
+
+              const pools: Pool[] = allPoolRows
+                .filter((p) => p.group_id === g.id)
+                .map((p) => ({
+                  id: p.id,
+                  groupId: p.group_id,
+                  creator: p.creator,
+                  title: p.title,
+                  targetAmount: p.target_amount,
+                  balance: p.balance,
+                  closed: p.closed,
+                  asset: p.asset || 'XLM',
+                  createdAt: new Date(p.created_at || Date.now()),
+                }));
+
+              return {
+                id: g.id,
+                name: g.name,
+                members,
+                expenses,
+                pools,
+                createdAt: new Date(g.created_at ?? Date.now()),
+              };
+            })
+          );
+
+          set({ groups: rebuilt });
+        } catch (err) {
+          console.error('[syncFromSupabase] Unexpected error:', err);
+        }
       },
     }),
     { name: 'stellarpay-groups-v4' }

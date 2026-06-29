@@ -6,7 +6,6 @@ import { CONTRACT_ADDRESS, NETWORK } from '../constants/contract';
 const rpcServer = new rpc.Server(NETWORK.rpcUrl);
 
 export function useContractEvents() {
-  const { addEvents, lastLedger, setLastLedger } = useEventStore();
 
   useEffect(() => {
     let currentLedger = useEventStore.getState().lastLedger;
@@ -19,7 +18,7 @@ export function useContractEvents() {
         currentLedger = useEventStore.getState().lastLedger;
         
         const startLedger = currentLedger === 0
-          ? Math.max(1, latest.sequence - 100)
+          ? Math.max(1, latest.sequence - 2000) // Search 2000 ledgers back for history (~3 hrs)
           : currentLedger + 1;
 
         if (startLedger > latest.sequence) return;
