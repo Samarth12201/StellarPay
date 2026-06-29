@@ -5,6 +5,13 @@
 ![CI/CD Status](https://img.shields.io/badge/CI%2FCD-passing-success?style=flat-square&logo=github-actions)
 ![Vercel Status](https://img.shields.io/badge/Vercel-deployed-blue?style=flat-square&logo=vercel)
 
+## 🎥 Demo Video
+
+<a href="https://youtu.be/faK0azNC8vo" target="_blank">
+  <img src="https://img.youtube.com/vi/faK0azNC8vo/maxresdefault.jpg" alt="StellarPay Demo Video" width="100%" style="max-width: 640px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.15);" />
+</a>
+
+*Click the banner above to watch the full project walkthrough.*
 
 Split bills, send payment requests, and pay instantly with QR links on Stellar Testnet.
 
