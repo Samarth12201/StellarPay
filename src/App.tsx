@@ -39,6 +39,8 @@ import { MobileNav } from './components/layout/MobileNav';
 import { RequestInbox } from './components/requests/RequestInbox';
 import { CONTRACT_ADDRESS } from './constants/contract';
 import { useRealtimeRequests } from './hooks/useRealtimeRequests';
+import { useRealtimeGroups } from './hooks/useRealtimeGroups';
+
 function useBalance() {
   const { address, setBalance } = useWalletStore();
   const { syncFromSupabase: syncGroups } = useGroupStore();
@@ -66,9 +68,8 @@ function useBalance() {
     loadBalance();
     const timer = window.setInterval(() => {
       loadBalance();
-      // Periodically sync Supabase
+      // Only syncing requests periodically since groups are fully real-time now
       if (address) {
-        syncGroups();
         syncRequests(address);
       }
     }, 15000);
@@ -433,6 +434,7 @@ function Dashboard() {
   
   useBalance();
   useRealtimeRequests();
+  useRealtimeGroups();
  
   const tabs = useMemo(() => [
     ['groups', Users, 'Split Bills (Groups)'],

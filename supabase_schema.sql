@@ -68,3 +68,9 @@ CREATE POLICY "Enable all for expenses" ON expenses FOR ALL USING (true) WITH CH
 CREATE POLICY "Enable all for payment_requests" ON payment_requests FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Enable all for pools" ON pools FOR ALL USING (true) WITH CHECK (true);
 
+-- Enable Realtime for all tables by adding them to the supabase_realtime publication
+BEGIN;
+  DROP PUBLICATION IF EXISTS supabase_realtime;
+  CREATE PUBLICATION supabase_realtime;
+COMMIT;
+ALTER PUBLICATION supabase_realtime ADD TABLE groups, group_members, expenses, pools, payment_requests;
