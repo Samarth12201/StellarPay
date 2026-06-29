@@ -13,6 +13,21 @@
 
 *Click the banner above to watch the full project walkthrough.*
 
+### 📱 Mobile Responsive UI & 🚀 CI/CD Pipeline Status
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <b>Mobile Responsive UI</b><br/><br/>
+      <img src="./screenshots/mobile_responsive.png" alt="Mobile Responsive UI" width="100%" style="max-width: 280px; border-radius: 8px; border: 1px solid #ddd;" />
+    </td>
+    <td width="50%" align="center">
+      <b>CI/CD Pipeline Passing</b><br/><br/>
+      <img src="./screenshots/ci_pipeline.png" alt="CI/CD Pipeline Passing" width="100%" style="max-width: 480px; border-radius: 8px; border: 1px solid #ddd;" />
+    </td>
+  </tr>
+</table>
+
 Split bills, send payment requests, and pay instantly with QR links on Stellar Testnet.
 
 ---
