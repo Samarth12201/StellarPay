@@ -9,12 +9,18 @@ export function useContractEvents() {
   const { addEvents, lastLedger, setLastLedger } = useEventStore();
 
   useEffect(() => {
+    let currentLedger = useEventStore.getState().lastLedger;
+
     const poll = async () => {
       try {
         const latest = await rpcServer.getLatestLedger();
-        const startLedger = lastLedger === 0
+        
+        // Fetch current ledger from the store directly so we don't need it in the dependency array
+        currentLedger = useEventStore.getState().lastLedger;
+        
+        const startLedger = currentLedger === 0
           ? Math.max(1, latest.sequence - 100)
-          : lastLedger + 1;
+          : currentLedger + 1;
 
         if (startLedger > latest.sequence) return;
 
@@ -45,10 +51,14 @@ export function useContractEvents() {
               timestamp: new Date(e.ledgerClosedAt ?? Date.now()),
             };
           });
-          addEvents(parsed);
+          // Update the global store with the new events
+          useEventStore.getState().addEvents(parsed);
         }
 
-        setLastLedger(latest.sequence);
+        // Update the global store with the latest ledger
+        useEventStore.getState().setLastLedger(latest.sequence);
+        currentLedger = latest.sequence;
+
       } catch (err) {
         console.warn('Event polling error:', err);
       }
@@ -57,5 +67,5 @@ export function useContractEvents() {
     poll();
     const interval = setInterval(poll, 10_000); // every 10s
     return () => clearInterval(interval);
-  }, [lastLedger]);
+  }, []); // Empty dependency array prevents the infinite loop!
 }
