@@ -12,7 +12,7 @@ import { calculateSettlements, totalSpent, memberBalances } from '../utils/settl
 import { Settlement } from '../types';
 import { GROUP_EXPENSE_CONTRACT_ADDRESS, USDC_CONTRACT_ADDRESS, NETWORK } from '../constants/contract';
 
-const server = new Horizon.Server(import.meta.env.VITE_HORIZON_URL);
+const server = new Horizon.Server(import.meta.env.VITE_HORIZON_URL || NETWORK.horizonUrl);
 const rpcServer = new rpc.Server(NETWORK.rpcUrl);
 
 export function useGroupSettlement(groupId: string) {
