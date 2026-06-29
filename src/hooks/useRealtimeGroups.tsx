@@ -10,22 +10,21 @@ export function useRealtimeGroups() {
   useEffect(() => {
     if (!address || !supabase) return;
 
+    let syncTimeout: NodeJS.Timeout;
+    const triggerSync = () => {
+      clearTimeout(syncTimeout);
+      syncTimeout = setTimeout(() => {
+        syncFromSupabase();
+      }, 500); // Wait 500ms to ensure all related table inserts (like group_members) finish
+    };
+
     // We subscribe to all changes on groups, expenses, and pools
-    // When a change occurs, we simply trigger a re-sync
     const channel = supabase
       .channel(`groups-sync`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'groups' }, () => {
-        syncFromSupabase();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, () => {
-        syncFromSupabase();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pools' }, () => {
-        syncFromSupabase();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'group_members' }, () => {
-        syncFromSupabase();
-      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'groups' }, triggerSync)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, triggerSync)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pools' }, triggerSync)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'group_members' }, triggerSync)
       .subscribe();
 
     return () => {
