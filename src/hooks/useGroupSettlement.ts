@@ -18,7 +18,7 @@ const rpcServer = new rpc.Server(NETWORK.rpcUrl);
 export function useGroupSettlement(groupId: string) {
   const { address } = useWalletStore();
   const { signXdr } = useWallet();
-  const { getGroup } = useGroupStore();
+  const { getGroup, addExpense } = useGroupStore();
   const { addRequest } = useRequestStore();
 
   const [paying, setPaying] = useState<string | null>(null);
@@ -167,6 +167,17 @@ export function useGroupSettlement(groupId: string) {
         status: 'paid',
         txHash,
       });
+
+      // Automatically log a "Settlement Payment" in the group ledger to zero out the debt
+      if (group?.id) {
+        await addExpense(group.id, {
+          description: 'Settlement Payment',
+          totalAmount: settlement.amount,
+          paidBy: settlement.from,
+          splitAmong: [settlement.to],
+          asset: assetType,
+        });
+      }
 
       return txHash;
     } catch (err: any) {
