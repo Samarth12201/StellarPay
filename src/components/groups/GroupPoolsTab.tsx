@@ -87,8 +87,8 @@ export function GroupPoolsTab({ group }: GroupPoolsTabProps) {
   return (
     <div className="space-y-5">
       {/* Header Panel */}
-      <div className="flex justify-between items-center bg-violet-50 p-4 rounded-2xl border border-violet-200">
-        <div>
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 bg-violet-50 p-4 rounded-2xl border border-violet-200">
+        <div className="min-w-0">
           <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
             <Gift className="text-violet-500 w-5 h-5" /> Crowdfunding Pools
           </h3>
@@ -96,7 +96,7 @@ export function GroupPoolsTab({ group }: GroupPoolsTabProps) {
         </div>
         <button
           onClick={() => setShowCreate(!showCreate)}
-          className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold rounded-xl shadow-sm transition"
+          className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold rounded-xl shadow-sm transition"
         >
           <Plus className="w-4 h-4" /> Create Pool
         </button>
@@ -167,18 +167,18 @@ export function GroupPoolsTab({ group }: GroupPoolsTabProps) {
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="flex flex-col sm:flex-row sm:justify-end gap-2 pt-2">
             <button
               type="button"
               onClick={() => setShowCreate(false)}
-              className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-semibold rounded-xl transition"
+              className="w-full sm:w-auto px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-semibold rounded-xl transition"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="flex items-center gap-1.5 px-4 py-2 bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white text-xs font-semibold rounded-xl shadow-sm transition"
+              className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-4 py-2 bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white text-xs font-semibold rounded-xl shadow-sm transition"
             >
               {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
               Create Pool
@@ -209,7 +209,7 @@ export function GroupPoolsTab({ group }: GroupPoolsTabProps) {
               >
                 {/* Pool Header */}
                 <div className="space-y-1.5">
-                  <div className="flex justify-between items-start">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2">
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                       p.closed
                         ? 'bg-green-100 text-green-700 border border-green-200'
@@ -256,7 +256,7 @@ export function GroupPoolsTab({ group }: GroupPoolsTabProps) {
                 {/* Action Area */}
                 {!p.closed ? (
                   <div className="space-y-3 pt-2 border-t border-gray-100">
-                    <div className="flex gap-2">
+                    <div className="flex flex-col sm:flex-row gap-2">
                       <input
                         type="number"
                         placeholder={`Amount (${p.asset})`}
@@ -270,7 +270,7 @@ export function GroupPoolsTab({ group }: GroupPoolsTabProps) {
                       <button
                         onClick={() => handleDonate(p.id, p.asset)}
                         disabled={loading}
-                        className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold rounded-xl flex items-center gap-1 transition disabled:opacity-50"
+                        className="w-full sm:w-auto px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-1 transition disabled:opacity-50"
                       >
                         Donate
                       </button>

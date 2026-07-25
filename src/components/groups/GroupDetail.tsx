@@ -7,6 +7,8 @@ import { SettlementView } from './SettlementView';
 import { AddExpense } from './AddExpense';
 import { Settlement } from '../../types';
 import toast from 'react-hot-toast';
+import { useInviteLink } from '../../hooks/useInviteLink';
+import { FXBadge } from '../fx/FXBadge';
 
 type Tab = 'expenses' | 'settle' | 'members';
 
@@ -16,6 +18,7 @@ export function GroupDetail() {
   const { address } = useWalletStore();
   const [tab, setTab] = useState<Tab>('expenses');
   const [showAddExpense, setShowAddExpense] = useState(false);
+  const { generateInvite } = useInviteLink();
 
   const {
     group,
@@ -56,34 +59,51 @@ export function GroupDetail() {
   const myIncoming = settlements.filter((s) => s.toAddress === address);
 
   return (
-    <div className="max-w-lg mx-auto px-4 py-5 space-y-5">
+    <div className="w-full max-w-lg mx-auto px-0 sm:px-4 py-3 sm:py-5 space-y-4 sm:space-y-5">
       {/* Header */}
-      <div className="flex items-center gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
         <button
           onClick={() => navigate('/dashboard')}
           className="p-2 hover:bg-gray-100 rounded-lg text-gray-500"
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <div className="flex-1">
-          <h1 className="text-xl font-bold text-gray-900">{group.name}</h1>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-xl font-bold text-gray-900 truncate">{group.name}</h1>
           <p className="text-sm text-gray-400">
             {group.members.length} members · {group.expenses.length} expenses
           </p>
         </div>
-        <button
-          onClick={() => setShowAddExpense(true)}
-          className="flex items-center gap-1.5 bg-violet-600 text-white px-3 py-2 rounded-xl text-sm font-semibold hover:bg-violet-700"
-        >
-          <Plus className="w-4 h-4" /> Add expense
-        </button>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <button
+            onClick={async () => {
+              try {
+                const url = await generateInvite(group.id);
+                navigator.clipboard.writeText(url);
+                toast.success('Invite link copied!');
+              } catch (err: any) {
+                toast.error(err.message ?? 'Failed to generate invite');
+              }
+            }}
+            className="flex-1 sm:flex-none flex items-center justify-center gap-1 bg-white border border-violet-200 text-violet-600 px-3 py-2 rounded-xl text-sm font-semibold hover:bg-violet-50"
+          >
+            🔗 Invite
+          </button>
+          <button
+            onClick={() => setShowAddExpense(true)}
+            className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-violet-600 text-white px-3 py-2 rounded-xl text-sm font-semibold hover:bg-violet-700"
+          >
+            <Plus className="w-4 h-4" /> Add
+          </button>
+        </div>
       </div>
 
       {/* Balance summary */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="bg-gray-50 rounded-xl p-3 text-center">
           <p className="text-xs text-gray-500 mb-0.5">Total Spend</p>
           <p className="text-base font-bold text-gray-900">{total} XLM</p>
+          <FXBadge xlmAmount={total} />
         </div>
         <div className={`rounded-xl p-3 text-center ${
           myBalance.net > 0 ? 'bg-green-50' : myBalance.net < 0 ? 'bg-red-50' : 'bg-gray-50'
@@ -94,6 +114,7 @@ export function GroupDetail() {
           }`}>
             {myBalance.net > 0 ? '+' : ''}{myBalance.net} XLM
           </p>
+          <FXBadge xlmAmount={Math.abs(myBalance.net)} />
         </div>
         <div className="bg-violet-50 rounded-xl p-3 text-center">
           <p className="text-xs text-gray-500 mb-0.5">To settle</p>
@@ -114,7 +135,7 @@ export function GroupDetail() {
 
       {/* My receivables callout */}
       {myIncoming.length > 0 && (
-        <div className="bg-violet-50 border border-violet-200 rounded-xl px-4 py-3 flex items-start justify-between gap-2">
+        <div className="bg-violet-50 border border-violet-200 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-start justify-between gap-3">
           <div>
             <p className="text-sm font-semibold text-violet-800">
               You are owed {myIncoming.reduce((s, t) => s + t.amount, 0).toFixed(2)} XLM
@@ -123,7 +144,7 @@ export function GroupDetail() {
           </div>
           <button
             onClick={handleRequestAll}
-            className="flex-shrink-0 bg-white border border-violet-200 text-violet-700 px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-violet-100"
+            className="w-full sm:w-auto flex-shrink-0 bg-white border border-violet-200 text-violet-700 px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-violet-100"
           >
             Request All
           </button>
@@ -131,7 +152,7 @@ export function GroupDetail() {
       )}
 
       {/* Tab bar */}
-      <div className="flex bg-gray-100 p-1 rounded-2xl gap-1">
+      <div className="grid grid-cols-3 bg-gray-100 p-1 rounded-2xl gap-1">
         {([
           { id: 'expenses', label: 'Expenses', icon: Receipt },
           { id: 'settle',   label: 'Settle up', icon: Send },
@@ -168,14 +189,14 @@ export function GroupDetail() {
               const payer = group.members.find((m) => m.id === e.paidBy);
               const share = e.totalAmount / e.splitAmong.length;
               return (
-                <div key={e.id} className="border border-gray-200 rounded-xl p-4 flex items-start gap-3">
+                <div key={e.id} className="border border-gray-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-start gap-3">
                   <div
                     className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0"
                     style={{ background: payer?.avatarColor ?? '#7C3AED' }}
                   >
                     {payer?.name[0].toUpperCase() ?? '?'}
                   </div>
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-gray-800">{e.description}</p>
                     <p className="text-xs text-gray-400 mt-0.5">
                       Paid by {payer?.name ?? 'unknown'} · split {e.splitAmong.length} ways ({share.toFixed(2)} {e.asset || 'XLM'} each)
@@ -184,7 +205,7 @@ export function GroupDetail() {
                       <p className="text-xs text-green-600 mt-0.5">✓ Settled on-chain</p>
                     )}
                   </div>
-                  <span className="text-sm font-bold text-gray-900">{e.totalAmount} {e.asset || 'XLM'}</span>
+                  <span className="text-sm font-bold text-gray-900 sm:text-right">{e.totalAmount} {e.asset || 'XLM'}</span>
                 </div>
               );
             })
@@ -221,14 +242,14 @@ export function GroupDetail() {
         <div className="space-y-2">
           {group.members.map((m) => {
             return (
-              <div key={m.id} className="flex items-center gap-3 border border-gray-200 rounded-xl p-3">
+              <div key={m.id} className="flex items-center gap-3 border border-gray-200 rounded-xl p-3 min-w-0">
                 <div
                   className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white"
                   style={{ background: m.avatarColor }}
                 >
                   {m.name[0].toUpperCase()}
                 </div>
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-800">{m.name}</p>
                   <p className="text-xs font-mono text-gray-400 truncate">
                     {m.address.slice(0, 12)}...{m.address.slice(-4)}

@@ -3,6 +3,7 @@ import { Wallet, Loader2 } from 'lucide-react';
 import { useWallet } from '../../hooks/useWallet';
 import { WalletError } from '../../errors/WalletError';
 import toast from 'react-hot-toast';
+import { trackEvent } from '../../lib/analytics';
 
 const ERROR_MESSAGES: Record<string, string> = {
   NOT_INSTALLED: '🔌 No wallet found. Install Freighter, Lobstr, or xBull.',
@@ -22,6 +23,7 @@ export function WalletConnect({ label, className }: { label?: string; className?
     setShowOptions(false);
     try {
       await connectFreighter();
+      trackEvent('wallet_connected', { wallet: 'freighter', network: 'testnet' });
       toast.success('Freighter connected!');
     } catch (err) {
       if (err instanceof WalletError) {
@@ -39,6 +41,7 @@ export function WalletConnect({ label, className }: { label?: string; className?
     setShowOptions(false);
     try {
       await openModal();
+      trackEvent('wallet_connected', { wallet: 'wallets_kit', network: 'testnet' });
       toast.success('Wallet connected!');
     } catch (err) {
       if (err instanceof WalletError) {

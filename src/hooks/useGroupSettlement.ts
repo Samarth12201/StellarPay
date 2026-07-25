@@ -11,14 +11,26 @@ import { useRequestStore } from '../store/requestStore';
 import { calculateSettlements, totalSpent, memberBalances } from '../utils/settlement';
 import { Settlement } from '../types';
 import { GROUP_EXPENSE_CONTRACT_ADDRESS, USDC_CONTRACT_ADDRESS, NETWORK } from '../constants/contract';
+import { USDC_TESTNET } from '../constants/assets';
+import { supabase } from '../lib/supabase';
 
 const server = new Horizon.Server(import.meta.env.VITE_HORIZON_URL || NETWORK.horizonUrl);
 const rpcServer = new rpc.Server(NETWORK.rpcUrl);
 
+async function hasUsdcTrustline(accountAddress: string) {
+  const account = await server.loadAccount(accountAddress);
+  return account.balances.some(
+    (balance) =>
+      balance.asset_type === 'credit_alphanum4' &&
+      (balance as any).asset_code === USDC_TESTNET.code &&
+      (balance as any).asset_issuer === USDC_TESTNET.issuer
+  );
+}
+
 export function useGroupSettlement(groupId: string) {
   const { address } = useWalletStore();
   const { signXdr } = useWallet();
-  const { getGroup } = useGroupStore();
+  const { getGroup, addExpense } = useGroupStore();
   const { addRequest } = useRequestStore();
 
   const [paying, setPaying] = useState<string | null>(null);
@@ -73,7 +85,13 @@ export function useGroupSettlement(groupId: string) {
 
     try {
       let txHash = '';
-      const memo = `${group?.name ?? 'Group'} split`.slice(0, 28);
+      let rawMemo = `${group?.name ?? 'Group'} split`;
+      const encoder = new TextEncoder();
+      while (encoder.encode(rawMemo).length > 28) {
+        rawMemo = rawMemo.slice(0, -1);
+      }
+      
+      const memo = rawMemo;
 
       if (assetType === 'XLM') {
         const sourceAccount = await server.loadAccount(address);
@@ -97,6 +115,11 @@ export function useGroupSettlement(groupId: string) {
         const response = await server.submitTransaction(signedTx);
         txHash = response.hash;
       } else {
+        const payerHasTrustline = await hasUsdcTrustline(address);
+        if (!payerHasTrustline) {
+          throw new Error('USDC trustline missing. Add the USDC trustline from the Pools tab, fund testnet USDC, then retry the contract payment.');
+        }
+
         // USDC payment using Soroban smart contract inter-contract call
         const contract = new Contract(GROUP_EXPENSE_CONTRACT_ADDRESS);
         const sourceAccount = await rpcServer.getAccount(address);
@@ -122,6 +145,12 @@ export function useGroupSettlement(groupId: string) {
 
         const sim = await rpcServer.simulateTransaction(tx);
         if (rpc.Api.isSimulationError(sim)) {
+          if (sim.error.toLowerCase().includes('trustline entry is missing')) {
+            throw new Error('USDC trustline missing. Add the USDC trustline from the Pools tab, fund testnet USDC, then retry the contract payment.');
+          }
+          if (sim.error.includes('Error(Contract, #10)')) {
+            throw new Error('Insufficient USDC balance. Please fund your testnet wallet via the Circle Faucet.');
+          }
           throw new Error(`Simulation failed: ${sim.error}`);
         }
 
@@ -165,6 +194,28 @@ export function useGroupSettlement(groupId: string) {
         txHash,
       });
 
+      // Automatically log a "Settlement Payment" in the group ledger to zero out the debt
+      if (group?.id) {
+        await addExpense(group.id, {
+          description: 'Settlement Payment',
+          totalAmount: settlement.amount,
+          paidBy: settlement.from,
+          splitAmong: [settlement.to],
+          asset: assetType,
+        });
+
+        // Clear any pending requests in the inbox for this exact debt
+        if (supabase) {
+          await supabase
+            .from('payment_requests')
+            .update({ status: 'paid', txhash: txHash })
+            .eq('groupid', group.id)
+            .eq('toaddress', address)
+            .eq('fromaddress', settlement.toAddress)
+            .eq('status', 'pending');
+        }
+      }
+
       return txHash;
     } catch (err: any) {
       const msg = err?.message ?? 'Transaction failed';
@@ -185,13 +236,20 @@ export function useGroupSettlement(groupId: string) {
       throw new Error(`${settlement.fromName} has no Stellar address. Recreate the group with their G... key.`);
     }
 
+    // Ensure memo is strictly <= 28 bytes for Stellar Network
+    let rawMemo = `${group?.name ?? 'Group'} - req from ${myMember?.name ?? 'member'}`;
+    const encoder = new TextEncoder();
+    while (encoder.encode(rawMemo).length > 28) {
+      rawMemo = rawMemo.slice(0, -1);
+    }
+
     // toAddress = fromAddress (the debtor) — they see it in their inbox
     const requestId = await addRequest({
       fromAddress: address,              // creditor (me) — who is owed
       toAddress: settlement.fromAddress, // debtor — whose inbox this goes into
       fromName: myMember?.name ?? settlement.toName,
       amount: settlement.amount.toFixed(7),
-      memo: `${group?.name ?? 'Group'} — payment request from ${myMember?.name ?? 'member'}`,
+      memo: rawMemo,
       groupId: group?.id,
       groupName: group?.name,
       status: 'pending',

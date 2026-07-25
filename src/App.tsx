@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, Navigate, Route, Routes, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Asset, BASE_FEE, Memo, Networks, Operation, TransactionBuilder } from '@stellar/stellar-sdk';
 import { nanoid } from 'nanoid';
 import toast from 'react-hot-toast';
@@ -20,9 +20,11 @@ import {
   FileCode,
   Radio,
   Users,
-  Gift
+  Gift,
+  MessageSquare,
+  Star
 } from 'lucide-react';
-import { useRequestStore, useWalletStore } from './store';
+import { useWalletStore, useRequestStore } from './store';
 import type { Participant, PaymentRequest, TransactionResult } from './types';
 import { formatXlm, isValidStellarAddress, server, truncateAddress } from './utils';
 import { useGroupStore } from './store/groupStore';
@@ -40,6 +42,19 @@ import { RequestInbox } from './components/requests/RequestInbox';
 import { CONTRACT_ADDRESS } from './constants/contract';
 import { useRealtimeRequests } from './hooks/useRealtimeRequests';
 import { useRealtimeGroups } from './hooks/useRealtimeGroups';
+import { ContractRequests } from './components/contract/ContractRequests';
+
+// Level 4 additions
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Onboarding } from './pages/Onboarding';
+import { Profile } from './pages/Profile';
+import { GroupInvite } from './pages/GroupInvite';
+import { ReviewsPage } from './pages/ReviewsPage';
+import { hasCompletedOnboarding, useProfile } from './hooks/useProfile';
+import { useUSDCBalance } from './hooks/useUSDCBalance';
+import { FXBadge } from './components/fx/FXBadge';
+
+const queryClient = new QueryClient();
 
 function useBalance() {
   const { address, setBalance } = useWalletStore();
@@ -110,6 +125,7 @@ function WalletInfo() {
   const navigate = useNavigate();
   const { address, balance } = useWalletStore();
   const { disconnect } = useWallet();
+  const { balance: usdcBalance } = useUSDCBalance(address);
 
   const handleDisconnect = () => {
     disconnect();
@@ -120,11 +136,26 @@ function WalletInfo() {
     <div className="walletCard">
       <div>
         <div className="wcLabel">XLM Balance</div>
-        <div className="wcBalance">{formatXlm(balance)}</div>
+        <div className="wcBalance">
+          {formatXlm(balance)}
+          <div style={{ marginTop: '0.1rem' }}>
+            <FXBadge xlmAmount={parseFloat(balance ?? '0')} />
+          </div>
+        </div>
+        {usdcBalance && parseFloat(usdcBalance) > 0 && (
+          <div style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: '#10B981', fontWeight: 'bold' }}>
+            💵 USDC Balance: {parseFloat(usdcBalance).toFixed(2)}
+          </div>
+        )}
         <span className="wcAddr">{address ? truncateAddress(address) : 'Not connected'}</span>
         <span className="wcNet">Testnet</span>
       </div>
-      <button className="disconnect" onClick={handleDisconnect}>Disconnect</button>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.75rem' }}>
+        <button className="btn primary small" onClick={() => navigate('/profile')} style={{ padding: '0.4rem', fontSize: '0.75rem', justifyContent: 'center' }}>
+          👤 Profile Settings
+        </button>
+        <button className="disconnect" onClick={handleDisconnect}>Disconnect</button>
+      </div>
     </div>
   );
 }
@@ -395,7 +426,7 @@ function AtomicPayForm() {
 }
 
 function SendPanel() {
-  const [sendMode, setSendMode] = useState<'simple' | 'atomic'>('simple');
+  const [sendMode, setSendMode] = useState<'simple' | 'atomic' | 'create'>('simple');
 
   return (
     <div>
@@ -409,21 +440,33 @@ function SendPanel() {
         </button>
         <button
           type="button"
+          onClick={() => setSendMode('create')}
+          className={sendMode === 'create' ? 'flex-1 bg-white text-violet-600 shadow-sm py-1.5 rounded-lg text-xs font-semibold border-0' : 'flex-1 text-gray-500 py-1.5 text-xs border-0 bg-transparent'}
+        >
+          Create Request
+        </button>
+        <button
+          type="button"
           onClick={() => setSendMode('atomic')}
           className={sendMode === 'atomic' ? 'flex-1 bg-white text-violet-600 shadow-sm py-1.5 rounded-lg text-xs font-semibold border-0' : 'flex-1 text-gray-500 py-1.5 text-xs border-0 bg-transparent'}
         >
-          Pay On-Chain Request
+          Pay Request
         </button>
       </div>
 
-      {sendMode === 'simple' ? <SendForm /> : <AtomicPayForm />}
+      {sendMode === 'simple' && <SendForm />}
+      {sendMode === 'create' && <ContractRequests />}
+      {sendMode === 'atomic' && <AtomicPayForm />}
     </div>
   );
 }
 
+import { FeedbackModal } from './components/feedback/FeedbackModal';
+
 function Dashboard() {
   const { address, isConnected } = useWalletStore();
-  const [active, setActive] = useState<'send' | 'requests' | 'events' | 'groups' | 'pools'>('groups');
+  const [active, setActive] = useState<'send' | 'requests' | 'events' | 'groups' | 'pools' | 'reviews'>('groups');
+  const [showFeedback, setShowFeedback] = useState(false);
   
   const { getIncoming } = useRequestStore();
   
@@ -442,6 +485,7 @@ function Dashboard() {
     ['pools', Gift, 'Voluntary Pools'],
     ['requests', Inbox, 'Requests'],
     ['events', Radio, 'Live Feed'],
+    ['reviews', Star, 'User Reviews'],
   ] as const, []);
  
   if (!isConnected) {
@@ -461,22 +505,33 @@ function Dashboard() {
                 {id === 'requests' && pendingCount > 0 && <span>{pendingCount}</span>}
               </button>
             ))}
+            
+            <div className="mt-auto pt-4 mb-2">
+              <button 
+                onClick={() => setShowFeedback(true)}
+                className="w-full flex items-center gap-2 text-xs text-gray-500 border border-dashed border-gray-300 rounded-xl py-2 px-3 hover:border-violet-300 hover:text-violet-600 transition-colors"
+              >
+                <MessageSquare size={16} /> Give Feedback
+              </button>
+            </div>
           </div>
         </aside>
         <section className="dashMain">
           <h2>{tabs.find(([id]) => id === active)?.[2]}</h2>
-          <p>{active === 'send' ? 'Transfer XLM or pay on-chain requests' : active === 'groups' ? 'Divide group expenses and automatically settle debts using Soroban' : active === 'pools' ? 'Collect voluntary contributions for gifts, events, or shared costs directly in contract escrow' : active === 'requests' ? 'Pending requests from groups' : 'Live Contract Events'}</p>
+          <p>{active === 'send' ? 'Transfer XLM or pay on-chain requests' : active === 'groups' ? 'Divide group expenses and automatically settle debts using Soroban' : active === 'pools' ? 'Collect voluntary contributions for gifts, events, or shared costs directly in contract escrow' : active === 'requests' ? 'Pending requests from groups' : active === 'reviews' ? 'Live user feedback with wallet addresses' : 'Live payment and contract activity'}</p>
           <div className="panel md:pb-6 pb-24">
             {active === 'send' && <SendPanel />}
             {active === 'groups' && <GroupPage />}
             {active === 'pools' && <PoolsPage />}
             {active === 'requests' && <RequestInbox />}
             {active === 'events' && <EventFeed />}
+            {active === 'reviews' && <ReviewsPage />}
           </div>
         </section>
       </main>
       <TxStatusBar />
       <MobileNav active={active} setActive={setActive} />
+      <FeedbackModal isOpen={showFeedback} onClose={() => setShowFeedback(false)} />
     </>
   );
 }
@@ -544,12 +599,45 @@ function PayPage() {
   );
 }
 
-export default function App() {
+function LegacyGroupRedirect() {
+  const { groupId } = useParams<{ groupId: string }>();
+  return <Navigate to={groupId ? `/dashboard/${groupId}` : '/dashboard'} replace />;
+}
+
+function AppRoutes() {
+  const { isConnected, address } = useWalletStore();
+  const { isNew, loading } = useProfile();
+  const location = useLocation();
+  const onboardingComplete = hasCompletedOnboarding(address);
+
+  // Show onboarding for first-time wallet users if not already on the onboarding page
+  if (isConnected && !loading && isNew && !onboardingComplete && location.pathname !== '/onboarding') {
+    return <Navigate to="/onboarding" replace />;
+  }
+
   return (
     <Routes>
-      <Route path="/" element={<Landing />} />
-      <Route path="/dashboard/*" element={<Dashboard />} />
-      <Route path="/pay" element={<PayPage />} />
+      <Route path="/"             element={<Landing />} />
+      <Route path="/dashboard/*"  element={<Dashboard />} />
+      <Route path="/groups/:groupId" element={<LegacyGroupRedirect />} />
+      <Route path="/groups" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/pay"          element={<PayPage />} />
+      <Route path="/profile"      element={<Profile />} />
+      <Route path="/onboarding"   element={<Onboarding />} />
+      <Route path="/invite/:code" element={<GroupInvite />} />
     </Routes>
+  );
+}
+
+import { Analytics } from '@vercel/analytics/react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
+
+export default function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AppRoutes />
+      <Analytics />
+      <SpeedInsights />
+    </QueryClientProvider>
   );
 }

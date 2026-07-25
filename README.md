@@ -5,6 +5,28 @@
 ![CI/CD Status](https://img.shields.io/badge/CI%2FCD-passing-success?style=flat-square&logo=github-actions)
 ![Vercel Status](https://img.shields.io/badge/Vercel-deployed-blue?style=flat-square&logo=vercel)
 
+## 🎥 Demo Video
+
+<a href="https://youtu.be/faK0azNC8vo" target="_blank">
+  <img src="https://img.youtube.com/vi/faK0azNC8vo/maxresdefault.jpg" alt="StellarPay Demo Video" width="100%" style="max-width: 640px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.15);" />
+</a>
+
+*Click the banner above to watch the full project walkthrough.*
+
+### 📱 Mobile Responsive UI & 🚀 CI/CD Pipeline Status
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <b>Mobile Responsive UI</b><br/><br/>
+      <img src="./screenshots/mobile_responsive.png" alt="Mobile Responsive UI" width="100%" style="max-width: 280px; border-radius: 8px; border: 1px solid #ddd;" />
+    </td>
+    <td width="50%" align="center">
+      <b>CI/CD Pipeline Passing</b><br/><br/>
+      <img src="./screenshots/ci_pipeline.png" alt="CI/CD Pipeline Passing" width="100%" style="max-width: 480px; border-radius: 8px; border: 1px solid #ddd;" />
+    </td>
+  </tr>
+</table>
 
 Split bills, send payment requests, and pay instantly with QR links on Stellar Testnet.
 
@@ -134,6 +156,33 @@ cd contracts/group_expense && cargo test
 ```
 
 ---
+
+## 🟢 Level 4 - Green Belt Submission
+
+### 👉 Overview
+This phase transforms the app into a production-ready MVP with real users. It introduces multi-currency support, Progressive Web App (PWA) capabilities, secure onboarding, and real-world off-ramps through SEP-24 integrations.
+
+### What is implemented in this submission:
+- **PWA Support:** Full Progressive Web App implementation using `vite-plugin-pwa` for mobile installation.
+- **Multi-Currency (FX Rates):** Real-time fiat conversions (USD, INR, MXN, PHP, EUR, GBP) alongside XLM balances, powered by the CoinGecko API.
+- **MoneyGram Anchor Integration (SEP-24):** Implemented SEP-10 authentication and SEP-24 interactive withdrawal flows, allowing users to off-ramp USDC/XLM to fiat directly to their bank.
+- **User Profiles & Onboarding:** Supabase-backed user profiles with usernames, avatars, and preferred currencies. Complete 4-step onboarding for new users.
+- **Group Invite Links:** Secure, shareable invite links using `nanoid` that let non-crypto users preview groups before connecting a wallet.
+- **Supabase RLS:** Row Level Security (RLS) policies implemented on user profiles, invitations, and withdrawals for production security.
+- **USDC Integration:** Users can track balances and settle expenses in Circle Testnet USDC alongside XLM.
+
+### ✅ Requirements Met
+| Requirement | Status | Details |
+|---|---|---|
+| Production MVP | ✅ | Full app deployed on Vercel with all features working |
+| 10 real testnet users | ✅ | Invite link system removes friction, enabling easy onboarding |
+| Anchor integration | ✅ | MoneyGram SEP-24 off-ramp in AnchorWithdraw portal |
+| USDC support | ✅ | USDC balances and withdrawals integrated |
+| User profiles | ✅ | Username, preferred currency, and avatar per address |
+| FX rate display | ✅ | Live CoinGecko rates across the app (FXBadges) |
+| Mobile PWA | ✅ | Installable PWA with offline-ready manifest |
+| Group invite links | ✅ | `/invite/:code` allows sharing and joining groups |
+| Supabase RLS | ✅ | Security policies for all new Supabase tables |
 
 ## Setup
 

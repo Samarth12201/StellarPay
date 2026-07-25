@@ -16,6 +16,7 @@ import { useWallet } from './useWallet';
 import { server, isValidStellarAddress } from '../utils';
 import type { TransactionResult } from '../types';
 import { CONTRACT_ADDRESS, NETWORK } from '../constants/contract';
+import { trackEvent } from '../lib/analytics';
 
 export function getFreighterError(error: unknown, fallback: string) {
   if (error instanceof Error) return error.message;
@@ -103,6 +104,12 @@ export function useSendPayment() {
 
         const tx = { hash: response.hash, to, amount, memo, status: 'success' as const, timestamp: new Date() };
         setResult(tx);
+        trackEvent('payment_sent', {
+          asset: 'XLM',
+          mode: 'contract_request',
+          amount: Number(amount),
+          requestId,
+        });
         return tx;
       } else {
         // --- STANDARD HORIZON DIRECT PAYMENT ---
@@ -120,6 +127,11 @@ export function useSendPayment() {
         const response = await server.submitTransaction(signedTx);
         const tx = { hash: response.hash, to, amount, memo, status: 'success' as const, timestamp: new Date() };
         setResult(tx);
+        trackEvent('payment_sent', {
+          asset: 'XLM',
+          mode: 'direct',
+          amount: Number(amount),
+        });
         return tx;
       }
     } catch (error) {

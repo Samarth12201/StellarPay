@@ -16,7 +16,7 @@ export function TxStatusBar() {
   if (active.length === 0) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 w-80 space-y-2 z-50">
+    <div className="fixed bottom-20 md:bottom-4 left-3 right-3 md:left-auto md:right-4 md:w-80 space-y-2 z-50">
       {active.map((tx) => {
         const cfg = STATUS_CONFIG[tx.status];
         return (

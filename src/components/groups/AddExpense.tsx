@@ -88,7 +88,7 @@ export function AddExpense({ groupId, onDone }: Props) {
 
       <div>
         <label className="block text-xs font-semibold text-gray-600 mb-1.5">Amount & Currency</label>
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2">
           <input
             type="number"
             value={amount}
@@ -96,12 +96,12 @@ export function AddExpense({ groupId, onDone }: Props) {
             placeholder="0.00"
             min="0.0000001"
             step="0.01"
-            className="flex-1 border border-gray-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-violet-400"
+            className="w-full sm:flex-1 border border-gray-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-violet-400"
           />
           <select
             value={asset}
             onChange={(e) => setAsset(e.target.value as 'XLM' | 'USDC')}
-            className="bg-gray-50 border border-gray-300 rounded-xl px-3 text-sm font-semibold text-violet-600 outline-none focus:ring-2 focus:ring-violet-400 cursor-pointer"
+            className="w-full sm:w-auto bg-gray-50 border border-gray-300 rounded-xl px-3 py-2.5 text-sm font-semibold text-violet-600 outline-none focus:ring-2 focus:ring-violet-400 cursor-pointer"
           >
             <option value="XLM">XLM</option>
             <option value="USDC">USDC</option>

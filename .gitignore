@@ -5,3 +5,7 @@ server/db.sqlite
 .agents/
 skills-lock.json
 contracts/**/target/
+.stellar-demo-config/
+testnet-demo-wallets.json
+testnet-demo-results.json
+user_feedback_demo.csv

@@ -42,7 +42,7 @@ export function SettlementView({ settlements, myAddress, onPay, onRequest, payin
             isMyPayment ? 'border-red-100 bg-red-50/30' :
             isMyReceive ? 'border-violet-100 bg-violet-50/30' : 'border-gray-200'
           }`}>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
               <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0"
                 style={{ background: isDone ? '#059669' : isMyPayment ? '#DC2626' : '#7C3AED' }}>
                 {s.fromName[0]?.toUpperCase()}
@@ -60,7 +60,7 @@ export function SettlementView({ settlements, myAddress, onPay, onRequest, payin
                   {s.fromAddress.slice(0, 8)}…{s.fromAddress.slice(-4)} → {s.toAddress.slice(0, 8)}…{s.toAddress.slice(-4)}
                 </p>
               </div>
-              <div className="text-right flex-shrink-0">
+              <div className="w-full sm:w-auto text-left sm:text-right flex-shrink-0">
                 <p className="text-lg font-bold text-gray-900">{s.amount}</p>
                 <p className="text-xs text-gray-400">XLM</p>
               </div>
@@ -84,7 +84,7 @@ export function SettlementView({ settlements, myAddress, onPay, onRequest, payin
             {!isDone && (
               <div className="flex flex-col gap-2">
                 {isMyPayment && (
-                  <div className="flex gap-2 w-full">
+                  <div className="flex flex-col sm:flex-row gap-2 w-full">
                     <button onClick={async () => {
                       try {
                         const hash = await onPay(s, 'XLM');

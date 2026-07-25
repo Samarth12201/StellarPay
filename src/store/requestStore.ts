@@ -121,11 +121,12 @@ export const useRequestStore = create<RequestStore>()(
         const { data } = await client
           .from('payment_requests')
           .select('*')
-          .eq('toaddress', myAddress)
-          .eq('status', 'pending');
+          .or(`toaddress.eq.${myAddress},fromaddress.eq.${myAddress}`)
+          .order('created_at', { ascending: false });
+          
         if (!data) return;
 
-        const incoming: PaymentRequest[] = data.map((r) => ({
+        const allRequests: PaymentRequest[] = data.map((r) => ({
           id: r.id,
           fromAddress: r.fromaddress ?? r.fromAddress,
           toAddress: r.toaddress ?? r.toAddress,
@@ -139,12 +140,7 @@ export const useRequestStore = create<RequestStore>()(
           createdAt: new Date(r.created_at),
         }));
 
-        // Merge with local — don't overwrite already-paid local records
-        set((s) => {
-          const existingIds = new Set(s.requests.map((r) => r.id));
-          const newOnes = incoming.filter((r) => !existingIds.has(r.id));
-          return { requests: [...newOnes, ...s.requests] };
-        });
+        set({ requests: allRequests });
       },
     }),
     { name: 'stellarpay-requests-v4' }
