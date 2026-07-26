@@ -23,18 +23,6 @@ create table if not exists group_invitations (
   created_at timestamptz default now()
 );
 
-create table if not exists anchor_withdrawals (
-  id text primary key,
-  user_address text not null,
-  amount text not null,
-  asset text not null check (asset in ('XLM', 'USDC')),
-  anchor_url text not null,
-  status text not null default 'pending',
-  stellar_tx_hash text,
-  created_at timestamptz default now(),
-  updated_at timestamptz default now()
-);
-
 create table if not exists user_feedback (
   id uuid primary key default gen_random_uuid(),
   address text not null,
@@ -50,7 +38,6 @@ alter table payment_requests enable row level security;
 alter table pools enable row level security;
 alter table user_profiles enable row level security;
 alter table group_invitations enable row level security;
-alter table anchor_withdrawals enable row level security;
 alter table user_feedback enable row level security;
 
 drop policy if exists "Enable all for groups" on groups;
@@ -96,10 +83,6 @@ create policy "Public read invitations" on group_invitations for select using (t
 create policy "Wallet app can create invitations" on group_invitations for insert with check (created_by ~ '^G[A-Z2-7]{55}$' and invite_code <> '');
 create policy "Wallet app can update invitations" on group_invitations for update using (id <> '') with check (invite_code <> '');
 
-create policy "Wallet app can read own withdrawals" on anchor_withdrawals for select using (user_address ~ '^G[A-Z2-7]{55}$');
-create policy "Wallet app can create withdrawals" on anchor_withdrawals for insert with check (user_address ~ '^G[A-Z2-7]{55}$');
-create policy "Wallet app can update withdrawals" on anchor_withdrawals for update using (user_address ~ '^G[A-Z2-7]{55}$') with check (user_address ~ '^G[A-Z2-7]{55}$');
-
 create policy "Public read feedback" on user_feedback for select using (true);
 create policy "Wallet app can submit feedback" on user_feedback for insert with check (address ~ '^G[A-Z2-7]{55}$' and length(feedback) between 1 and 2000);
 
@@ -109,14 +92,12 @@ create index if not exists idx_group_invitations_group_id on group_invitations(g
 create index if not exists idx_group_members_group_id on group_members(group_id);
 create index if not exists idx_payment_requests_groupid on payment_requests(groupid);
 create index if not exists idx_pools_group_id on pools(group_id);
-create index if not exists idx_anchor_withdrawals_user_address on anchor_withdrawals(user_address);
 
 grant usage on schema public to anon, authenticated;
 grant select, insert, update, delete on groups, group_members, expenses, payment_requests, pools to anon, authenticated;
-grant select, insert, update on user_profiles, group_invitations, anchor_withdrawals to anon, authenticated;
+grant select, insert, update on user_profiles, group_invitations to anon, authenticated;
 grant select, insert on user_feedback to anon, authenticated;
 
 alter publication supabase_realtime add table user_profiles;
 alter publication supabase_realtime add table group_invitations;
 alter publication supabase_realtime add table user_feedback;
-alter publication supabase_realtime add table anchor_withdrawals;
