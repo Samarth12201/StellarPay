@@ -53,6 +53,8 @@ import { ReviewsPage } from './pages/ReviewsPage';
 import { hasCompletedOnboarding, useProfile } from './hooks/useProfile';
 import { useUSDCBalance } from './hooks/useUSDCBalance';
 import { FXBadge } from './components/fx/FXBadge';
+import { Analytics } from '@vercel/analytics/react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 
 const queryClient = new QueryClient();
 
@@ -628,9 +630,6 @@ function AppRoutes() {
     </Routes>
   );
 }
-
-import { Analytics } from '@vercel/analytics/react';
-import { SpeedInsights } from '@vercel/speed-insights/react';
 
 export default function App() {
   return (
