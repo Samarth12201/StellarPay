@@ -7,8 +7,8 @@
 
 ## 🎥 Demo Video
 
-<a href="https://youtu.be/faK0azNC8vo" target="_blank">
-  <img src="https://img.youtube.com/vi/faK0azNC8vo/maxresdefault.jpg" alt="StellarPay Demo Video" width="100%" style="max-width: 640px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.15);" />
+<a href="https://youtu.be/hoRQ8aC3_oU" target="_blank">
+  <img src="https://img.youtube.com/vi/hoRQ8aC3_oU/maxresdefault.jpg" alt="StellarPay Demo Video" width="100%" style="max-width: 640px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.15);" />
 </a>
 
 *Click the banner above to watch the full project walkthrough.*
@@ -27,6 +27,12 @@
     </td>
   </tr>
 </table>
+
+### Analytics & Monitoring
+
+StellarPay uses Vercel Web Analytics for page views and visitor insights, and Vercel Speed Insights for frontend performance monitoring.
+
+![Vercel Analytics](./screenshots/Screenshot%202026-07-26%20155456.png)
 
 Split bills, send payment requests, and pay instantly with QR links on Stellar Testnet.
 
