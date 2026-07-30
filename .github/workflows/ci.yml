@@ -7,7 +7,7 @@ on:
     branches: [ main, master ]
 
 jobs:
-  build-and-test:
+  frontend:
     runs-on: ubuntu-latest
 
     steps:
@@ -28,3 +28,38 @@ jobs:
 
       - name: Run Tests
         run: npm run test
+
+  smart-contracts:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            contracts/payment_requests
+            contracts/group_expense
+
+      - name: Check Payment Requests Contract
+        working-directory: contracts/payment_requests
+        run: cargo check --locked
+
+      - name: Build Payment Requests WASM
+        working-directory: contracts/payment_requests
+        run: cargo build --release --target wasm32-unknown-unknown --locked
+
+      - name: Test Group Expense Contract
+        working-directory: contracts/group_expense
+        run: cargo test --locked
+
+      - name: Build Group Expense WASM
+        working-directory: contracts/group_expense
+        run: cargo build --release --target wasm32-unknown-unknown --locked

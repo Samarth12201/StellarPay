@@ -124,7 +124,7 @@ Production-grade decentralized group expense settlement dApp with multi-contract
 | Advanced smart contract development | ✅ | GroupExpense contract with pools, escrow, settlements |
 | Inter-contract communication | ✅ | `settle_expense_with_token` calls USDC SAC contract |
 | Event streaming & real-time updates | ✅ | Supabase realtime + contract event feed |
-| CI/CD pipeline setup | ✅ | `.github/workflows/ci.yml` + `deploy.yml` |
+| CI/CD pipeline setup | ✅ | `.github/workflows/ci.yml` runs frontend and Soroban contract checks; `deploy.yml` builds frontend and contract WASM artifacts |
 | Smart contract deployment workflow | ✅ | Compiled, optimized, deployed via Stellar CLI |
 | Mobile responsive frontend | ✅ | `MobileNav` + Tailwind responsive classes |
 | Error handling & loading states | ✅ | ErrorBoundary, TxStatusBar, toast notifications |
@@ -209,6 +209,21 @@ This phase transforms StellarPay into a production-ready MVP for Stellar testnet
 - **Group Expense Contract:** `CCXGCUR7WRG75FT3M4DW763MMQW6ZHDFRPHVX6L5W67MWY3ED5YVBELB`
 - **Circle Testnet USDC SAC:** `CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA`
 - **Circle Testnet USDC Issuer:** `GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5`
+
+### Frontend Smart Contract Integration
+The React frontend invokes the deployed Soroban contracts directly through `@stellar/stellar-sdk` using `Contract.call`, RPC simulation, wallet signing, and transaction submission.
+
+| Frontend File | Contract Function(s) | Purpose |
+|---|---|---|
+| `src/constants/contract.ts` | Contract IDs + testnet passphrase | Central source for deployed contract addresses and Stellar Testnet config |
+| `src/hooks/useContract.ts` | `create_request`, `get_request`, `pay_request` | Creates and pays payment requests through the Payment Request contract |
+| `src/hooks/useGroupSettlement.ts` | `settle_expense_with_token` | Settles group balances through the Group Expense contract and USDC SAC token transfer |
+| `src/hooks/useGroupPools.ts` | `create_pool`, `contribute_pool`, `withdraw_pool` | Creates, contributes to, and closes group escrow pools through the Group Expense contract |
+| `src/hooks/useSendPayment.ts` | `create_request` | Builds, simulates, signs, and submits request transactions from the payment flow |
+
+### Smart Contract CI/CD Validation
+- **CI:** `.github/workflows/ci.yml` runs frontend typecheck/tests plus `cargo check`, `cargo test`, and `cargo build --release --target wasm32-unknown-unknown --locked` for the Soroban contracts.
+- **CD:** `.github/workflows/deploy.yml` builds Vercel frontend artifacts, builds both Soroban WASM artifacts, uploads the contract WASM files, and includes gated Stellar Testnet deployment steps when `ENABLE_CONTRACT_DEPLOY` and `STELLAR_SECRET_KEY` secrets are configured.
 
 ### Proof of 10+ Wallet Interactions
 The following Stellar testnet transactions demonstrate wallet-to-wallet USDC interactions used for Level 4 validation.
